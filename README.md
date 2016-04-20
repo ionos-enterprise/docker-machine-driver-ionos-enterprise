@@ -8,8 +8,8 @@ The ProfitBricks plugin will only work with Docker Machine. Before we continue, 
 
 Next you will need to run the following commands to install the ProfitBricks Docker Machine driver:
 
-    go get github.com/StackPointCloud/docker-machine-driver-profitbricks
-    cd $GOPATH/src/github.com/StackPointCloud/docker-machine-driver-profitbricks
+    go get github.com/profitbricks/docker-machine-driver-profitbricks
+    cd $GOPATH/src/github.com/profitbricks/docker-machine-driver-profitbricks
     make install  
 
 ## Create a ProfitBricks machine

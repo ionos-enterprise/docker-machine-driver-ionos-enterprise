@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/StackPointCloud/docker-machine-driver-profitbricks"
+	"github.com/profitbricks/docker-machine-driver-profitbricks"
 	"github.com/docker/machine/libmachine/drivers/plugin"
 )
 
