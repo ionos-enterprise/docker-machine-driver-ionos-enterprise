@@ -5,16 +5,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/StackPointCloud/machine/libmachine/ssh"
-	"github.com/StackPointCloud/profitbricks-sdk-go"
+	"github.com/docker/machine/libmachine/ssh"
+	"github.com/profitbricks/profitbricks-sdk-go"
 	"github.com/docker/machine/libmachine/drivers"
 	"github.com/docker/machine/libmachine/log"
 	"github.com/docker/machine/libmachine/mcnflag"
 	"github.com/docker/machine/libmachine/state"
 	"io/ioutil"
 	"strings"
-	//"net/url"
-	//"strconv"
 )
 
 type Driver struct {
