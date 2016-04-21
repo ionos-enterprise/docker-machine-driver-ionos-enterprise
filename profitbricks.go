@@ -34,7 +34,7 @@ type Driver struct {
 
 const (
 	defaultImage  = "Ubuntu-15.10-server-2016-04-01"
-	defaultRegion = "us/lasdev"
+	defaultRegion = "us/las"
 	defaultSize   = 10
 	waitCount     = 5
 )
