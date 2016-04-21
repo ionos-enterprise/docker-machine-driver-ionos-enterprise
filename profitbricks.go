@@ -5,16 +5,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/StackPointCloud/machine/libmachine/ssh"
-	"github.com/StackPointCloud/profitbricks-sdk-go"
 	"github.com/docker/machine/libmachine/drivers"
 	"github.com/docker/machine/libmachine/log"
 	"github.com/docker/machine/libmachine/mcnflag"
+	"github.com/docker/machine/libmachine/ssh"
 	"github.com/docker/machine/libmachine/state"
+	"github.com/profitbricks/profitbricks-sdk-go"
 	"io/ioutil"
 	"strings"
-	//"net/url"
-	//"strconv"
 )
 
 type Driver struct {
@@ -28,13 +26,14 @@ type Driver struct {
 	SSHKey       string
 	DatacenterId string
 	DiskSize     int
+	DiskType     string
 	Image        string
 	Size         int
 	Location     string
 }
 
 const (
-	defaultImage  = "Ubuntu-15.10-server-2016-03-01"
+	defaultImage  = "Ubuntu-15.10-server-2016-04-01"
 	defaultRegion = "us/lasdev"
 	defaultSize   = 10
 	waitCount     = 5
@@ -49,9 +48,9 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 			Usage:  "profitbricks API endpoint",
 		},
 		mcnflag.StringFlag{
-			EnvVar: "PROFITBRICKS_USER_NAME",
-			Name:   "profitbricks-user-name",
-			Usage:  "profitbricks user name",
+			EnvVar: "PROFITBRICKS_USERNAME",
+			Name:   "profitbricks-username",
+			Usage:  "profitbricks username",
 		},
 		mcnflag.StringFlag{
 			EnvVar: "PROFITBRICKS_PASSWORD",
@@ -85,8 +84,14 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 		mcnflag.StringFlag{
 			EnvVar: "PROFITBRICKS_LOCATION",
 			Name:   "profitbricks-location",
-			Value:  "us/lasdev",
+			Value:  "us/las",
 			Usage:  "profitbricks location",
+		},
+		mcnflag.StringFlag{
+			EnvVar: "PROFITBRICKS_DISK_TYPE",
+			Name:   "profitbricks-disk-type",
+			Value:  "HDD",
+			Usage:  "profitbricks disk type (HDD, SSD)",
 		},
 	}
 }
@@ -114,7 +119,7 @@ func (d *Driver) DriverName() string {
 func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 
 	d.URL = flags.String("profitbricks-endpoint")
-	d.Username = flags.String("profitbricks-user-name")
+	d.Username = flags.String("profitbricks-username")
 
 	d.Password = flags.String("profitbricks-password")
 	d.DiskSize = flags.Int("profitbricks-disk-size")
@@ -122,6 +127,7 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	d.Cores = flags.Int("profitbricks-cores")
 	d.Ram = flags.Int("profitbricks-ram")
 	d.Location = flags.String("profitbricks-location")
+	d.DiskType = flags.String("profitbricks-disk-type")
 	d.SwarmMaster = flags.Bool("swarm-master")
 	d.SwarmHost = flags.String("swarm-host")
 	d.SwarmDiscovery = flags.String("swarm-discovery")
@@ -136,31 +142,6 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 
 func (d *Driver) PreCreateCheck() error {
 	return nil
-}
-
-func (d *Driver) waitTillProvisioned(path string) {
-	d.setPB()
-	for i := 0; i < waitCount; i++ {
-		request := profitbricks.GetRequestStatus(path)
-		if request.MetaData["status"] == "DONE" {
-			break
-		}
-		time.Sleep(10 * time.Second)
-		i++
-	}
-}
-
-func (d *Driver) getImageId(imageName string) string {
-	d.setPB()
-
-	images := profitbricks.ListImages()
-
-	for i := 0; i < len(images.Items); i++ {
-		if images.Items[i].Properties["name"] == imageName && images.Items[i].Properties["imageType"] == "HDD" && images.Items[i].Properties["location"] == "us/lasdev" {
-			return images.Items[i].Id
-		}
-	}
-	return ""
 }
 
 func (d *Driver) Create() error {
@@ -214,8 +195,6 @@ func (d *Driver) Create() error {
 
 	d.waitTillProvisioned(strings.Join(server.Resp.Headers["Location"], ""))
 
-	time.Sleep(30 * time.Second)
-
 	d.Image = d.getImageId(d.Image)
 
 	if d.Image == "" {
@@ -223,10 +202,10 @@ func (d *Driver) Create() error {
 	}
 	volumerequest := profitbricks.CreateVolumeRequest{
 		VolumeProperties: profitbricks.VolumeProperties{
-			Size:   10,
-			Name:   "Volume Test",
+			Size:   d.DiskSize,
+			Name:   d.MachineName,
 			Image:  d.Image,
-			Type:   "HDD",
+			Type:   d.DiskType,
 			SshKey: []string{d.SSHKey},
 		},
 	}
@@ -333,13 +312,7 @@ func (d *Driver) Restart() error {
 func (d *Driver) Remove() error {
 	d.setPB()
 
-	// Destroy the virtual machine
-	resp := profitbricks.DeleteServer(d.DatacenterId, d.ServerId)
-	if resp.StatusCode > 299 {
-		return errors.New(string(resp.Body))
-	}
-
-	resp = profitbricks.DeleteDatacenter(d.DatacenterId)
+	resp := profitbricks.DeleteDatacenter(d.DatacenterId)
 	if resp.StatusCode > 299 {
 		return errors.New(string(resp.Body))
 	}
@@ -450,4 +423,29 @@ func (d *Driver) createSSHKey() (string, error) {
 
 func (d *Driver) isSwarmMaster() bool {
 	return d.SwarmMaster
+}
+
+func (d *Driver) waitTillProvisioned(path string) {
+	d.setPB()
+	for i := 0; i < waitCount; i++ {
+		request := profitbricks.GetRequestStatus(path)
+		if request.MetaData["status"] == "DONE" {
+			break
+		}
+		time.Sleep(10 * time.Second)
+		i++
+	}
+}
+
+func (d *Driver) getImageId(imageName string) string {
+	d.setPB()
+
+	images := profitbricks.ListImages()
+
+	for i := 0; i < len(images.Items); i++ {
+		if images.Items[i].Properties["name"] == imageName && images.Items[i].Properties["imageType"] == d.DiskType && images.Items[i].Properties["location"] == d.Location {
+			return images.Items[i].Id
+		}
+	}
+	return ""
 }
