@@ -6,7 +6,9 @@ clean:
 	$(RM) $(GOPATH)/bin/docker-machine-driver-profitbricks
 
 build: clean
-	GOGC=off go build -i -o ./bin/docker-machine-driver-profitbricks ./bin
+	GOOS=darwin GOARCH=amd64 GOGC=off  CGOENABLED=0 go build -i -o ./bin/docker-machine-driver-profitbricks ./bin
+	GOOS=windows GOARCH=amd64 GOGC=off CGOENABLED=0 go build -i -o ./bin/docker-machine-driver-profitbricks.exe ./bin
+	GOOS=linux GOARCH=amd64 GOGC=off CGOENABLED=0 go build -i -o ./bin/docker-machine-driver-profitbricks ./bin
 
 install: build
 	cp ./bin/docker-machine-driver-profitbricks $(GOPATH)/bin/
