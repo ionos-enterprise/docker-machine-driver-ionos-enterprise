@@ -186,7 +186,7 @@ func (d *Driver) Create() error {
 	//Create a PB Sever
 	serverrequest := profitbricks.CreateServerRequest{
 		ServerProperties: profitbricks.ServerProperties{
-			Name:  d.MachineName,
+			Name:  d.MachineName + " - Server",
 			Ram:   d.Ram,
 			Cores: d.Cores,
 		},
@@ -211,7 +211,7 @@ func (d *Driver) Create() error {
 	volumerequest := profitbricks.CreateVolumeRequest{
 		VolumeProperties: profitbricks.VolumeProperties{
 			Size:   d.DiskSize,
-			Name:   d.MachineName,
+			Name:   d.MachineName + " - Volume",
 			Image:  d.Image,
 			Type:   d.DiskType,
 			SshKey: []string{d.SSHKey},
@@ -246,7 +246,7 @@ func (d *Driver) Create() error {
 	lanrequest := profitbricks.CreateLanRequest{
 		LanProperties: profitbricks.LanProperties{
 			Public: true,
-			Name:   d.MachineName,
+			Name:   d.MachineName + " Lan",
 		},
 	}
 
@@ -293,7 +293,7 @@ func (d *Driver) Create() error {
 
 	nicrequest := profitbricks.NicCreateRequest{
 		NicProperties: profitbricks.NicProperties{
-			Name: d.MachineName,
+			Name: d.MachineName + " - NIC",
 			Lan:  lan.Id,
 			Ips:  []string{ip},
 		},
