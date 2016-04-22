@@ -78,7 +78,7 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 		mcnflag.StringFlag{
 			EnvVar: "PROFITBRICKS_IMAGE",
 			Name:   "profitbricks-image",
-			Value:  "Ubuntu-15.10-server-2016-03-01",
+			Value:  "Ubuntu-15.10-server-2016-04-01",
 			Usage:  "profitbricks image",
 		},
 		mcnflag.StringFlag{
@@ -321,6 +321,9 @@ func (d *Driver) Remove() error {
 }
 
 func (d *Driver) GetURL() (string, error) {
+	if err := drivers.MustBeRunning(d); err != nil {
+		return "", err
+	}
 	ip, err := d.GetIP()
 	if err != nil {
 		return "", err
@@ -394,6 +397,8 @@ func (d *Driver) GetState() (state.State, error) {
 		return state.Stopped, nil
 	case "CHRASHED":
 		return state.Error, nil
+	case "INACTIVE":
+		return state.Stopped, nil
 	}
 	return state.None, nil
 }
