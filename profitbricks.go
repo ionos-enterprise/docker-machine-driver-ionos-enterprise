@@ -141,6 +141,12 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 }
 
 func (d *Driver) PreCreateCheck() error {
+	if d.Username == "" {
+		return fmt.Errorf("Please provide username as paramter --profitbricks-username or as environment variable $PROFITBRICKS_USERNAME")
+	}
+	if d.getImageId(d.Image) == "" {
+		return fmt.Errorf("The image %s %s %s", d.Image, d.Location, "does not exist.")
+	}
 	return nil
 }
 
@@ -190,7 +196,9 @@ func (d *Driver) Create() error {
 	if server.Resp.StatusCode == 202 {
 		log.Info("Server Created")
 	} else {
-		return errors.New("Error while creating Server: " + string(server.Resp.Body))
+		log.Error("Error while creating Server: " + string(server.Resp.Body))
+		d.Remove()
+		return errors.New("Rolling back...")
 	}
 
 	d.waitTillProvisioned(strings.Join(server.Resp.Headers["Location"], ""))
@@ -215,8 +223,9 @@ func (d *Driver) Create() error {
 	if volume.Resp.StatusCode == 202 {
 		log.Info("Volume Created")
 	} else {
-		return errors.New("Error while creating Volume: " + string(volume.Resp.Body))
-
+		log.Error("Error while creating Volume: " + string(volume.Resp.Body))
+		d.Remove()
+		return errors.New("Rolling back...")
 	}
 
 	d.waitTillProvisioned(strings.Join(volume.Resp.Headers["Location"], ""))
@@ -224,11 +233,11 @@ func (d *Driver) Create() error {
 	attachresponse := profitbricks.AttachVolume(dc.Id, server.Id, volume.Id)
 
 	if attachresponse.Resp.StatusCode == 202 {
-		log.Info("Attached a volume  to a server.")
+		log.Info("Attached a volume to a server.")
 	} else {
-		errorString := "Error while attaching Volume: " + string(attachresponse.Resp.Body)
-		log.Error(errorString)
-		return errors.New(errorString)
+		log.Error("Error while attaching Volume: " + string(attachresponse.Resp.Body))
+		d.Remove()
+		return errors.New("Rolling back...")
 
 	}
 
@@ -246,17 +255,47 @@ func (d *Driver) Create() error {
 	if lan.Resp.StatusCode == 202 {
 		log.Info("LAN Created")
 	} else {
-		return errors.New("Error while creating a LAN " + string(lan.Resp.Body))
+		log.Error("Error while creating a LAN " + string(lan.Resp.Body))
+		d.Remove()
+		return errors.New("Rolling back...")
 	}
 
 	d.waitTillProvisioned(strings.Join(lan.Resp.Headers["Location"], ""))
 
 	d.ServerId = server.Id
 
+	ipblockreq := profitbricks.IPBlockReserveRequest{
+		IPBlockProperties: profitbricks.IPBlockProperties{
+			Size:     1,
+			Location: d.Location,
+		},
+	}
+
+	ipblockresp := profitbricks.ReserveIpBlock(ipblockreq)
+
+	if lan.Resp.StatusCode == 202 {
+		log.Info("IP Block Reserved")
+	} else {
+		log.Error("Error while reserving an IP Block " + string(lan.Resp.Body))
+		d.Remove()
+		return errors.New("Rolling back...")
+	}
+
+	d.waitTillProvisioned(strings.Join(ipblockresp.Resp.Headers["Location"], ""))
+
+	ip := ipblockresp.Properties["ips"].([]interface{})[0].(string)
+
+	if ip == "" {
+		log.Error("IP Address could not be assigned")
+		d.Remove()
+		return errors.New("Rolling back...")
+	}
+
 	nicrequest := profitbricks.NicCreateRequest{
 		NicProperties: profitbricks.NicProperties{
 			Name: d.MachineName,
 			Lan:  lan.Id,
+			Ips:  []string{ip},
 		},
 	}
 
@@ -265,8 +304,9 @@ func (d *Driver) Create() error {
 	if nic.Resp.StatusCode == 202 {
 		log.Info("NIC created")
 	} else {
-		return errors.New("Error while creating a NIC " + string(nic.Resp.Body))
-
+		log.Error("Error while creating a NIC " + string(nic.Resp.Body))
+		d.Remove()
+		return errors.New("Rolling back...")
 	}
 
 	d.waitTillProvisioned(strings.Join(nic.Resp.Headers["Location"], ""))
@@ -287,8 +327,9 @@ func (d *Driver) Create() error {
 	if serverpatchresponse.Resp.StatusCode == 202 {
 		log.Info("Updated server's boot image")
 	} else {
-		return errors.New("Error while setting Boot Volume to Server: " + string(serverpatchresponse.Resp.Body))
-
+		log.Error("Error while setting Boot Volume to Server: " + string(serverpatchresponse.Resp.Body))
+		d.Remove()
+		return errors.New("Rolling back...")
 	}
 
 	d.waitTillProvisioned(strings.Join(serverpatchresponse.Resp.Headers["Location"], ""))
@@ -313,6 +354,20 @@ func (d *Driver) Remove() error {
 	d.setPB()
 
 	resp := profitbricks.DeleteDatacenter(d.DatacenterId)
+	d.waitTillProvisioned(strings.Join(resp.Headers["Location"], ""))
+	ipblocks := profitbricks.ListIpBlocks()
+
+	for i := 0; i < len(ipblocks.Items); i++ {
+		for _, v := range ipblocks.Items[i].Properties["ips"].([]interface{}) {
+			if d.IPAddress == v.(string) {
+				resp := profitbricks.ReleaseIpBlock(ipblocks.Items[i].Id)
+				if resp.StatusCode > 299 {
+					return errors.New(string(resp.Body))
+				}
+			}
+		}
+	}
+
 	if resp.StatusCode > 299 {
 		return errors.New(string(resp.Body))
 	}
@@ -372,6 +427,11 @@ func (d *Driver) Kill() error {
 	return nil
 }
 func (d *Driver) GetIP() (string, error) {
+	d.setPB()
+	server := profitbricks.GetServer(d.DatacenterId, d.ServerId)
+
+	d.IPAddress = server.Entities["nics"].Items[0].Properties["ips"].([]interface{})[0].(string)
+
 	if d.IPAddress == "" {
 		return "", fmt.Errorf("IP address is not set")
 	}
