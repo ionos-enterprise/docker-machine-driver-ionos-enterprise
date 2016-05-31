@@ -47,9 +47,9 @@ Before you create a ProfitBricks machine you will need to set two environment va
 
 It is possible to pass your credentials on the command-line using `--profitbricks-username` and `--profitbricks-password` if you prefer.
 
-Now run `docker-machine create` with the relevant parameters. This example will use mostly default values and will therefore be created in the `us/las` location. We need to supply the name of a valid ProfitBricks image available in that location:
+Now run `docker-machine create` with the relevant parameters. This example will use mostly default values and will therefore be created in the `us/las` location.
 
-    docker-machine create --driver profitbricks --profitbricks-image "Ubuntu-16.04-LTS-server-2016-05-01" test-machine
+    docker-machine create --driver profitbricks test-machine
 
 It should produce results similar to this:
 
@@ -104,7 +104,7 @@ Usage: Usage: docker-machine create [OPTIONS] [arg...]
           --profitbricks-disk-size "50"						profitbricks disk size (10, 50, 100, 200, 400) [$PROFITBRICKS_DISK_SIZE]
           --profitbricks-disk-type "HDD"						profitbricks disk type (HDD, SSD) [$PROFITBRICKS_DISK_TYPE]
           --profitbricks-endpoint "https://api.profitbricks.com/rest/v2"		profitbricks API endpoint [$PROFITBRICKS_ENDPOINT]
-          --profitbricks-image "Ubuntu-15.10-server-2016-03-01"			profitbricks image [$PROFITBRICKS_IMAGE]
+          --profitbricks-image "Ubuntu-16.04"			profitbricks image [$PROFITBRICKS_IMAGE]
           --profitbricks-location "us/las"						profitbricks location [$PROFITBRICKS_LOCATION]
           --profitbricks-password 							profitbricks password [$PROFITBRICKS_PASSWORD]
           --profitbricks-ram "2048"							profitbricks ram (1024, 2048, 3072, 4096, etc.) [$PROFITBRICKS_RAM]
