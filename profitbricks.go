@@ -33,10 +33,9 @@ type Driver struct {
 }
 
 const (
-	defaultImage  = "Ubuntu-15.10-server-2016-04-01"
 	defaultRegion = "us/lasdev"
-	defaultSize   = 10
-	waitCount     = 5
+	defaultSize = 10
+	waitCount = 5
 )
 
 func (d *Driver) GetCreateFlags() []mcnflag.Flag {
@@ -78,7 +77,7 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 		mcnflag.StringFlag{
 			EnvVar: "PROFITBRICKS_IMAGE",
 			Name:   "profitbricks-image",
-			Value:  "Ubuntu-15.10-server-2016-04-01",
+			Value:  "Ubuntu-16.04",
 			Usage:  "profitbricks image",
 		},
 		mcnflag.StringFlag{
@@ -98,7 +97,6 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 
 func NewDriver(hostName, storePath string) drivers.Driver {
 	return &Driver{
-		Image:    defaultImage,
 		Size:     defaultSize,
 		Location: defaultRegion,
 		BaseDriver: &drivers.BaseDriver{
@@ -508,7 +506,12 @@ func (d *Driver) getImageId(imageName string) string {
 	images := profitbricks.ListImages()
 
 	for i := 0; i < len(images.Items); i++ {
-		if images.Items[i].Properties["name"] == imageName && images.Items[i].Properties["imageType"] == d.DiskType && images.Items[i].Properties["location"] == d.Location {
+		imgName := ""
+		if images.Items[i].Properties["name"] != nil {
+			imgName = images.Items[i].Properties["name"].(string)
+		}
+
+		if imgName != "" && strings.Contains(strings.ToLower(imgName), strings.ToLower(imageName)) && images.Items[i].Properties["imageType"] == d.DiskType && images.Items[i].Properties["location"] == d.Location {
 			return images.Items[i].Id
 		}
 	}
