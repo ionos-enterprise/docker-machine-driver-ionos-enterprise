@@ -510,8 +510,11 @@ func (d *Driver) getImageId(imageName string) string {
 		if images.Items[i].Properties["name"] != nil {
 			imgName = images.Items[i].Properties["name"].(string)
 		}
-
-		if imgName != "" && strings.Contains(strings.ToLower(imgName), strings.ToLower(imageName)) && images.Items[i].Properties["imageType"] == d.DiskType && images.Items[i].Properties["location"] == d.Location {
+		diskType := d.DiskType
+		if (d.DiskType == "SSD") {
+			diskType = "HDD"
+		}
+		if imgName != "" && strings.Contains(strings.ToLower(imgName), strings.ToLower(imageName)) && images.Items[i].Properties["imageType"] == diskType && images.Items[i].Properties["location"] == d.Location {
 			return images.Items[i].Id
 		}
 	}
