@@ -1,29 +1,57 @@
 # ProfitBricks Docker Machine Driver
 
-This is the official Docker Machine driver for ProfitBricks
+This is the official Docker Machine driver for use with the ProfitBricks Cloud.
 
-## Install and Run the ProfitBricks Docker Machine Driver
+## Table of Contents
+* [Install Docker Machine](#install-docker-machine)
+* [Install Go](#install-go)
+* [Install Driver](#install-driver)
+* [Create a Machine](#create-a-machine)
+* [Create a Swarm](#create-a-swarm)
+* [Support](#support)
 
-The ProfitBricks plugin will only work with Docker Machine. Before we continue, you will need to install [Docker Machine](https://docs.docker.com/machine/install-machine/)
+## Install Docker Machine
 
-Next you will need to run the following commands to install the ProfitBricks Docker Machine driver:
+This ProfitBricks plugin will only work with Docker Machine. Before we continue, you will need to install [Docker Machine](https://docs.docker.com/machine/install-machine/). Docker Machine is included as part of Docker Toolbox. You can gain access to `docker-machine` by installing Docker Toolbox on Mac OS X or Windows. It is also possible to install just Docker Machine without the rest of the components of Docker Toolbox.
+
+## Install Go
+
+The ProfitBricks Docker Machine Driver is written in the Go programming language. Your system will need to have Go installed. Please refer to the [Go Install Documentation](https://golang.org/doc/install) if you do not have Go installed and configured for your system.
+
+Remember to set `$GOPATH` and update `$PATH`. The following are just examples using the `export` command, you will need to adjust the paths for your particular installation.
+
+    export GOPATH=/usr/local/go
+    export PATH=$PATH:/usr/local/go/bin
+
+## Install Driver
+
+With those prerequisites taken care of, will need to run the following commands to install the ProfitBricks Docker Machine driver:
 
     go get github.com/profitbricks/docker-machine-driver-profitbricks
+
+If you just installed Go, you may get an error indicating the need to configure the `$GOPATH` environment variable. Once `$GOPATH` is set properly, the command should complete successfully.
+
+Next we need to build and install the driver itself.
+
     cd $GOPATH/src/github.com/profitbricks/docker-machine-driver-profitbricks
-    make install  
+    make install
 
-## Create a ProfitBricks machine
+When successful, we will end up with a newly created `docker-machine-driver-profitbricks` binary in `$GOPATH/bin/`.
 
-Before you create a ProfitBricks machine you will need to set these variables:
+## Create a Machine
+
+Before you create a ProfitBricks machine you will need to set two environment variables containing your ProfitBricks credentials. These would be the same username and password that you use to log into the ProfitBricks DCD (Data Center Designer):
 
     export PROFITBRICKS_USERNAME="profitbricks_username"
     export PROFITBRICKS_PASSWORD="profitbricks_password"
 
-Then run this command to create a machine:
+It is possible to pass your credentials on the command-line using `--profitbricks-username` and `--profitbricks-password` if you prefer.
+
+Now run `docker-machine create` with the relevant parameters. This example will use mostly default values and will therefore be created in the `us/las` location.
 
     docker-machine create --driver profitbricks test-machine
 
-It will produce results similar to this:
+It should produce results similar to this:
 
 ```
 Running pre-create checks...
@@ -52,18 +80,18 @@ To see how to connect your Docker Client to the Docker Engine running on this vi
 
 To get detailed information about the possible options,  run the command:
 
-```docker-machine create --help --driver profitbricks```
+`docker-machine create --help --driver profitbricks`
 
 ```
 Usage: Usage: docker-machine create [OPTIONS] [arg...]
-       
+
        Create a machine
-       
+
        Description:
           Run 'docker-machine create --driver name' to include the create flags for that driver in the help text.
-       
+
        Options:
-          
+
           --driver, -d "none"								Driver to create machine with.
           --engine-env [--engine-env option --engine-env option]			Specify environment variables to set in the engine
           --engine-insecure-registry [--engine-insecure-registry option --engine-insecure-registry option]	Specify insecure registries to allow with the created engine
@@ -76,7 +104,7 @@ Usage: Usage: docker-machine create [OPTIONS] [arg...]
           --profitbricks-disk-size "50"						profitbricks disk size (10, 50, 100, 200, 400) [$PROFITBRICKS_DISK_SIZE]
           --profitbricks-disk-type "HDD"						profitbricks disk type (HDD, SSD) [$PROFITBRICKS_DISK_TYPE]
           --profitbricks-endpoint "https://api.profitbricks.com/rest/v2"		profitbricks API endpoint [$PROFITBRICKS_ENDPOINT]
-          --profitbricks-image "Ubuntu-15.10-server-2016-03-01"			profitbricks image [$PROFITBRICKS_IMAGE]
+          --profitbricks-image "Ubuntu-16.04"			profitbricks image [$PROFITBRICKS_IMAGE]
           --profitbricks-location "us/las"						profitbricks location [$PROFITBRICKS_LOCATION]
           --profitbricks-password 							profitbricks password [$PROFITBRICKS_PASSWORD]
           --profitbricks-ram "2048"							profitbricks ram (1024, 2048, 3072, 4096, etc.) [$PROFITBRICKS_RAM]
@@ -89,7 +117,7 @@ Usage: Usage: docker-machine create [OPTIONS] [arg...]
           --swarm-master								Configure Machine to be a Swarm master
           --swarm-opt [--swarm-opt option --swarm-opt option]				Define arbitrary flags for swarm
           --swarm-strategy "spread"							Define a default scheduling strategy for Swarm
-          --tls-san [--tls-san option --tls-san option]				Support extra SANs for TLS certs   
+          --tls-san [--tls-san option --tls-san option]				Support extra SANs for TLS certs
 ```
 
 To list the machines you have created, use the command:
@@ -100,12 +128,12 @@ It will return information about your machines, similar to this:
 
 ```
 NAME           ACTIVE   DRIVER         STATE     URL                         SWARM   DOCKER    ERRORS
-default        -        virtualbox     Running   tcp://192.168.99.100:2376           v1.10.2   
-test-machine   -        profitbricks   Running   tcp://162.254.26.156:2376           v1.10.3   
+default        -        virtualbox     Running   tcp://192.168.99.100:2376           v1.10.2
+test-machine   -        profitbricks   Running   tcp://162.254.26.156:2376           v1.10.3
 
 ```
 
-# Create a Swarm of ProfitBricks Machines 
+# Create a Swarm
 
 Before you create a swarm of ProfitBricks machines, run this command:
 
@@ -113,12 +141,11 @@ Before you create a swarm of ProfitBricks machines, run this command:
 
 Then use the output to create the swarm and set a swarm master:
 
-    docker-machine create -d profitbricks --swarm --swarm-master —-swarm-discovery token://f3a75db19a03589ac28550834457bfc3 swarm-master-test
+    docker-machine create -d profitbricks --swarm --swarm-master --swarm-discovery token://f3a75db19a03589ac28550834457bfc3 swarm-master-test
 
 To create a swarm child, use the command:
 
-```docker-machine create -d profitbricks --swarm —-swarm-discovery token://f3a75db19a03589ac28550834457bfc3 swarm-child-test```
-
+```docker-machine create -d profitbricks --swarm --swarm-discovery token://f3a75db19a03589ac28550834457bfc3 swarm-child-test```
 
 ## Support
 
