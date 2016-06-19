@@ -294,6 +294,7 @@ func (d *Driver) Create() error {
 			Name: d.MachineName,
 			Lan:  lan.Id,
 			Ips:  []string{ip},
+			Dhcp: true,
 		},
 	}
 
