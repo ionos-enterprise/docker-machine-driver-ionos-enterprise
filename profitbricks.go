@@ -171,6 +171,10 @@ func (d *Driver) Create() error {
 
 	ipblockresp := profitbricks.ReserveIpBlock(ipblockreq)
 
+	if (ipblockresp.StatusCode > 299) {
+		return fmt.Errorf("An error occurred while reserving an ipblock: %s", ipblockresp.StatusCode)
+	}
+
 	d.waitTillProvisioned(ipblockresp.Headers.Get("Location"))
 
 	datacenter := profitbricks.Datacenter{
