@@ -12,8 +12,8 @@ import (
 	"github.com/docker/machine/libmachine/state"
 	"github.com/profitbricks/profitbricks-sdk-go"
 	"io/ioutil"
-	"strings"
 	"strconv"
+	"strings"
 )
 
 type Driver struct {
@@ -35,8 +35,8 @@ type Driver struct {
 
 const (
 	defaultRegion = "us/lasdev"
-	defaultSize = 10
-	waitCount = 5
+	defaultSize   = 10
+	waitCount     = 100
 )
 
 func (d *Driver) GetCreateFlags() []mcnflag.Flag {
@@ -171,7 +171,7 @@ func (d *Driver) Create() error {
 
 	ipblockresp := profitbricks.ReserveIpBlock(ipblockreq)
 
-	if (ipblockresp.StatusCode > 299) {
+	if ipblockresp.StatusCode > 299 {
 		return fmt.Errorf("An error occurred while reserving an ipblock: %s", ipblockresp.StatusCode)
 	}
 
@@ -179,39 +179,28 @@ func (d *Driver) Create() error {
 
 	datacenter := profitbricks.Datacenter{
 		Properties: profitbricks.DatacenterProperties{
-			Name: d.MachineName,
-			Location:d.Location,
+			Name:     d.MachineName,
+			Location: d.Location,
 		},
-		Entities:profitbricks.DatacenterEntities{
+		Entities: profitbricks.DatacenterEntities{
 			Servers: &profitbricks.Servers{
-				Items:[]profitbricks.Server{
+				Items: []profitbricks.Server{
 					profitbricks.Server{
 						Properties: profitbricks.ServerProperties{
-							Name : d.MachineName,
-							Ram: d.Ram,
+							Name:  d.MachineName,
+							Ram:   d.Ram,
 							Cores: d.Cores,
 						},
-						Entities:&profitbricks.ServerEntities{
+						Entities: &profitbricks.ServerEntities{
 							Volumes: &profitbricks.Volumes{
-								Items:[]profitbricks.Volume{
+								Items: []profitbricks.Volume{
 									profitbricks.Volume{
 										Properties: profitbricks.VolumeProperties{
-											Type:d.DiskType,
-											Size:d.DiskSize,
-											Name:d.MachineName,
-											Image:image,
+											Type:    d.DiskType,
+											Size:    d.DiskSize,
+											Name:    d.MachineName,
+											Image:   image,
 											SshKeys: []string{d.SSHKey},
-										},
-									},
-								},
-							},
-							Nics: &profitbricks.Nics{
-								Items: []profitbricks.Nic{
-									profitbricks.Nic{
-										Properties: profitbricks.NicProperties{
-											Name : d.MachineName,
-											Lan : 1,
-											Ips: ipblockresp.Properties.Ips,
 										},
 									},
 								},
@@ -230,32 +219,44 @@ func (d *Driver) Create() error {
 		return errors.New("Error while creating DC: " + string(dc.Response))
 
 	}
-
-	d.DatacenterId = dc.Id
-
 	d.waitTillProvisioned(dc.Headers.Get("Location"))
 
-	lanrequest := profitbricks.Lan{
+	lan := profitbricks.CreateLan(dc.Id, profitbricks.Lan{
 		Properties: profitbricks.LanProperties{
 			Public: true,
+			Name:   d.MachineName,
 		},
-	}
-
-	lan := profitbricks.CreateLan(dc.Id, lanrequest)
+	})
 
 	if lan.StatusCode == 202 {
 		log.Info("LAN Created")
 	} else {
-		log.Error("Error while creating a LAN " + string(lan.Response))
+		log.Error()
 		d.Remove()
-		return errors.New("Rolling back...")
+		return errors.New("Error while creating a LAN " + string(lan.Response) + "Rolling back...")
 	}
+
+	d.DatacenterId = dc.Id
 
 	d.waitTillProvisioned(lan.Headers.Get("Location"))
 	lanId, _ := strconv.Atoi(lan.Id)
-	obj := profitbricks.PatchNic(dc.Id, dc.Entities.Servers.Items[0].Id, dc.Entities.Servers.Items[0].Entities.Nics.Items[0].Id, profitbricks.NicProperties{Lan:lanId})
 
-	d.waitTillProvisioned(obj.Headers.Get("Location"))
+	nic := profitbricks.CreateNic(dc.Id, dc.Entities.Servers.Items[0].Id, profitbricks.Nic{
+		Properties: profitbricks.NicProperties{
+			Name: d.MachineName,
+			Lan:  lanId,
+			Ips:  ipblockresp.Properties.Ips,
+		},
+	})
+
+	if nic.StatusCode == 202 {
+		log.Info("NIC Created")
+	} else {
+		d.Remove()
+		return errors.New("Error while creating a NIC " + string(nic.Response) + "Rolling back...")
+	}
+
+	d.waitTillProvisioned(nic.Headers.Get("Location"))
 	d.ServerId = dc.Entities.Servers.Items[0].Id
 
 	d.IPAddress = ipblockresp.Properties.Ips[0]
@@ -362,7 +363,7 @@ func (d *Driver) GetState() (state.State, error) {
 	d.setPB()
 	server := profitbricks.GetServer(d.DatacenterId, d.ServerId)
 
-	switch server.Metadata.State{
+	switch server.Metadata.State {
 	case "NOSTATE":
 		return state.None, nil
 	case "AVAILABLE":
@@ -427,7 +428,7 @@ func (d *Driver) getImageId(imageName string) string {
 
 	images := profitbricks.ListImages()
 
-	if (images.StatusCode == 401) {
+	if images.StatusCode == 401 {
 		log.Error("Authentication failed")
 		return ""
 	}
@@ -438,7 +439,7 @@ func (d *Driver) getImageId(imageName string) string {
 			imgName = images.Items[i].Properties.Name
 		}
 		diskType := d.DiskType
-		if (d.DiskType == "SSD") {
+		if d.DiskType == "SSD" {
 			diskType = "HDD"
 		}
 		if imgName != "" && strings.Contains(strings.ToLower(imgName), strings.ToLower(imageName)) && images.Items[i].Properties.ImageType == diskType && images.Items[i].Properties.Location == d.Location {

@@ -50,9 +50,9 @@ func getDefaultTestDriverFlags() *DriverOptionsMock {
 	return &DriverOptionsMock{
 		Data: map[string]interface{}{
 			"profitbricks-endpoint":  "https://api.profitbricks.com/rest/v2",
-			"profitbricks-username": "user@domain",
+			"profitbricks-username":  "user@domain",
 			"profitbricks-password":  "password",
-			"profitbricks-disk-type" : "HDD",
+			"profitbricks-disk-type": "HDD",
 			"profitbricks-disk-size": 5,
 			"profitbricks-image":     "Ubuntu-15.10",
 			"profitbricks-cores":     1,
@@ -118,9 +118,9 @@ func TestRemove(t *testing.T) {
 	d.Remove()
 }
 
-func TestGetImageName(t *testing.T){
-	d,_:= getTestDriver()
-	res :=d.getImageId("Debian-8-server1")
+func TestGetImageName(t *testing.T) {
+	d, _ := getTestDriver()
+	res := d.getImageId("Debian-8-server1")
 
 	fmt.Println(res == "")
 }
