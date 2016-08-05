@@ -101,6 +101,7 @@ Usage: Usage: docker-machine create [OPTIONS] [arg...]
           --engine-registry-mirror [--engine-registry-mirror option --engine-registry-mirror option]		Specify registry mirrors to use
           --engine-storage-driver 							Specify a storage driver to use with the engine
           --profitbricks-cores "4"							profitbricks cores (2, 3, 4, 5, 6, etc.) [$PROFITBRICKS_CORES]
+          --profitbricks-cpu-family "AMD_OPTERON"           profitbricks CPU families (INTEL_XEON, AMD_OPTERON) [$PROFITBRICKS_CPU_FAMILY]
           --profitbricks-disk-size "50"						profitbricks disk size (10, 50, 100, 200, 400) [$PROFITBRICKS_DISK_SIZE]
           --profitbricks-disk-type "HDD"						profitbricks disk type (HDD, SSD) [$PROFITBRICKS_DISK_TYPE]
           --profitbricks-endpoint "https://api.profitbricks.com/rest/v2"		profitbricks API endpoint [$PROFITBRICKS_ENDPOINT]
