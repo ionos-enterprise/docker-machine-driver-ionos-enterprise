@@ -31,12 +31,13 @@ type Driver struct {
 	Image        string
 	Size         int
 	Location     string
+	CpuFamily    string
 }
 
 const (
 	defaultRegion = "us/lasdev"
-	defaultSize   = 10
-	waitCount     = 100
+	defaultSize = 10
+	waitCount = 100
 )
 
 func (d *Driver) GetCreateFlags() []mcnflag.Flag {
@@ -93,6 +94,12 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 			Value:  "HDD",
 			Usage:  "profitbricks disk type (HDD, SSD)",
 		},
+		mcnflag.StringFlag{
+			EnvVar: "PROFITBRICKS_CPU_FAMILY",
+			Name:   "profitbricks-cpu-family",
+			Value:  "AMD_OPTERON",
+			Usage:  "profitbricks CPU families (AMD_OPTERON,INTEL_XEON)",
+		},
 	}
 }
 
@@ -130,6 +137,8 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	d.SwarmMaster = flags.Bool("swarm-master")
 	d.SwarmHost = flags.String("swarm-host")
 	d.SwarmDiscovery = flags.String("swarm-discovery")
+	d.CpuFamily = flags.String("profitbricks-cpu-family")
+
 	d.SetSwarmConfigFromFlags(flags)
 
 	if d.URL == "" {
@@ -190,6 +199,7 @@ func (d *Driver) Create() error {
 							Name:  d.MachineName,
 							Ram:   d.Ram,
 							Cores: d.Cores,
+							CpuFamily: d.CpuFamily,
 						},
 						Entities: &profitbricks.ServerEntities{
 							Volumes: &profitbricks.Volumes{
