@@ -32,6 +32,8 @@ type Driver struct {
 	Size         int
 	Location     string
 	CpuFamily    string
+	DCExists     bool
+	LanId        string
 }
 
 const (
@@ -46,12 +48,12 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 			EnvVar: "PROFITBRICKS_ENDPOINT",
 			Name:   "profitbricks-endpoint",
 			Value:  "https://api.profitbricks.com/rest/v2",
-			Usage:  "profitbricks API endpoint",
+			Usage:  "ProfitBricks API endpoint",
 		},
 		mcnflag.StringFlag{
 			EnvVar: "PROFITBRICKS_USERNAME",
 			Name:   "profitbricks-username",
-			Usage:  "profitbricks username",
+			Usage:  "ProfitBricks username",
 		},
 		mcnflag.StringFlag{
 			EnvVar: "PROFITBRICKS_PASSWORD",
@@ -62,43 +64,47 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 			EnvVar: "PROFITBRICKS_CORES",
 			Name:   "profitbricks-cores",
 			Value:  4,
-			Usage:  "profitbricks cores (2, 3, 4, 5, 6, etc.)",
+			Usage:  "ProfitBricks cores (2, 3, 4, 5, 6, etc.)",
 		},
 		mcnflag.IntFlag{
 			EnvVar: "PROFITBRICKS_RAM",
 			Name:   "profitbricks-ram",
 			Value:  2048,
-			Usage:  "profitbricks ram (1024, 2048, 3072, 4096, etc.)",
+			Usage:  "ProfitBricks ram (1024, 2048, 3072, 4096, etc.)",
 		},
 		mcnflag.IntFlag{
 			EnvVar: "PROFITBRICKS_DISK_SIZE",
 			Name:   "profitbricks-disk-size",
 			Value:  50,
-			Usage:  "profitbricks disk size (10, 50, 100, 200, 400)",
+			Usage:  "ProfitBricks disk size (10, 50, 100, 200, 400)",
 		},
 		mcnflag.StringFlag{
 			EnvVar: "PROFITBRICKS_IMAGE",
 			Name:   "profitbricks-image",
 			Value:  "Ubuntu-16.04",
-			Usage:  "profitbricks image",
+			Usage:  "ProfitBricks image",
 		},
 		mcnflag.StringFlag{
 			EnvVar: "PROFITBRICKS_LOCATION",
 			Name:   "profitbricks-location",
 			Value:  "us/las",
-			Usage:  "profitbricks location",
+			Usage:  "ProfitBricks location",
 		},
 		mcnflag.StringFlag{
 			EnvVar: "PROFITBRICKS_DISK_TYPE",
 			Name:   "profitbricks-disk-type",
 			Value:  "HDD",
-			Usage:  "profitbricks disk type (HDD, SSD)",
+			Usage:  "ProfitBricks disk type (HDD, SSD)",
 		},
 		mcnflag.StringFlag{
 			EnvVar: "PROFITBRICKS_CPU_FAMILY",
 			Name:   "profitbricks-cpu-family",
 			Value:  "AMD_OPTERON",
-			Usage:  "profitbricks CPU families (AMD_OPTERON,INTEL_XEON)",
+			Usage:  "ProfitBricks CPU families (AMD_OPTERON,INTEL_XEON)",
+		},
+		mcnflag.StringFlag{
+			Name:   "profitbricks-datacenter-id",
+			Usage:  "ProfitBricks Virtual Data Center Id",
 		},
 	}
 }
@@ -138,6 +144,7 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	d.SwarmHost = flags.String("swarm-host")
 	d.SwarmDiscovery = flags.String("swarm-discovery")
 	d.CpuFamily = flags.String("profitbricks-cpu-family")
+	d.DatacenterId = flags.String("profitbricks-datacenter-id")
 
 	d.SetSwarmConfigFromFlags(flags)
 
@@ -186,50 +193,29 @@ func (d *Driver) Create() error {
 
 	d.waitTillProvisioned(ipblockresp.Headers.Get("Location"))
 
-	datacenter := profitbricks.Datacenter{
-		Properties: profitbricks.DatacenterProperties{
-			Name:     d.MachineName,
-			Location: d.Location,
-		},
-		Entities: profitbricks.DatacenterEntities{
-			Servers: &profitbricks.Servers{
-				Items: []profitbricks.Server{
-					profitbricks.Server{
-						Properties: profitbricks.ServerProperties{
-							Name:  d.MachineName,
-							Ram:   d.Ram,
-							Cores: d.Cores,
-							CpuFamily: d.CpuFamily,
-						},
-						Entities: &profitbricks.ServerEntities{
-							Volumes: &profitbricks.Volumes{
-								Items: []profitbricks.Volume{
-									profitbricks.Volume{
-										Properties: profitbricks.VolumeProperties{
-											Type:    d.DiskType,
-											Size:    d.DiskSize,
-											Name:    d.MachineName,
-											Image:   image,
-											SshKeys: []string{d.SSHKey},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
+	var dc profitbricks.Datacenter
+
+	if (d.DatacenterId == "") {
+		d.DCExists = false
+		dc = profitbricks.Datacenter{
+			Properties: profitbricks.DatacenterProperties{
+				Name:     d.MachineName,
+				Location: d.Location,
 			},
-		},
-	}
+		}
 
-	dc := profitbricks.CompositeCreateDatacenter(datacenter)
-	if dc.StatusCode == 202 {
-		log.Info("Datacenter Created")
+		dc := profitbricks.CompositeCreateDatacenter(dc)
+		if dc.StatusCode == 202 {
+			log.Info("Datacenter Created")
+		} else {
+			return errors.New("Error while creating DC: " + string(dc.Response))
+
+		}
+		d.waitTillProvisioned(dc.Headers.Get("Location"))
 	} else {
-		return errors.New("Error while creating DC: " + string(dc.Response))
-
+		d.DCExists = true
+		dc = profitbricks.GetDatacenter(d.DatacenterId)
 	}
-	d.waitTillProvisioned(dc.Headers.Get("Location"))
 
 	lan := profitbricks.CreateLan(dc.Id, profitbricks.Lan{
 		Properties: profitbricks.LanProperties{
@@ -249,25 +235,60 @@ func (d *Driver) Create() error {
 	d.DatacenterId = dc.Id
 
 	d.waitTillProvisioned(lan.Headers.Get("Location"))
+
 	lanId, _ := strconv.Atoi(lan.Id)
 
-	nic := profitbricks.CreateNic(dc.Id, dc.Entities.Servers.Items[0].Id, profitbricks.Nic{
+	d.LanId = lan.Id
+
+	server := profitbricks.Server{
+		Properties: profitbricks.ServerProperties{
+			Name:  d.MachineName,
+			Ram:   d.Ram,
+			Cores: d.Cores,
+			CpuFamily: d.CpuFamily,
+		},
+		Entities: &profitbricks.ServerEntities{
+			Volumes: &profitbricks.Volumes{
+				Items: []profitbricks.Volume{
+					profitbricks.Volume{
+						Properties: profitbricks.VolumeProperties{
+							Type:    d.DiskType,
+							Size:    d.DiskSize,
+							Name:    d.MachineName,
+							Image:   image,
+							SshKeys: []string{d.SSHKey},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	nic := profitbricks.Nic{
 		Properties: profitbricks.NicProperties{
 			Name: d.MachineName,
 			Lan:  lanId,
 			Ips:  ipblockresp.Properties.Ips,
 		},
-	})
-
-	if nic.StatusCode == 202 {
-		log.Info("NIC Created")
-	} else {
-		d.Remove()
-		return errors.New("Error while creating a NIC " + string(nic.Response) + "Rolling back...")
 	}
 
-	d.waitTillProvisioned(nic.Headers.Get("Location"))
-	d.ServerId = dc.Entities.Servers.Items[0].Id
+	server.Entities.Nics = &profitbricks.Nics{
+		Items: []profitbricks.Nic{
+			nic,
+		},
+	}
+
+	server = profitbricks.CreateServer(dc.Id, server)
+
+	if server.StatusCode == 202 {
+		log.Info("server Created")
+	} else {
+		d.Remove()
+		return errors.New("Error while creating a server " + string(server.Response) + "Rolling back...")
+	}
+
+	d.waitTillProvisioned(server.Headers.Get("Location"))
+	d.ServerId = server.Id
 
 	d.IPAddress = ipblockresp.Properties.Ips[0]
 	log.Info(d.IPAddress)
@@ -285,23 +306,37 @@ func (d *Driver) Restart() error {
 func (d *Driver) Remove() error {
 	d.setPB()
 
-	resp := profitbricks.DeleteDatacenter(d.DatacenterId)
-	d.waitTillProvisioned(strings.Join(resp.Headers["Location"], ""))
+	if (!d.DCExists) {
+		resp := profitbricks.DeleteDatacenter(d.DatacenterId)
+		d.waitTillProvisioned(strings.Join(resp.Headers["Location"], ""))
+		if resp.StatusCode > 299 {
+			return errors.New(string(resp.Body))
+		}
+	} else {
+		resp := profitbricks.DeleteServer(d.DatacenterId, d.ServerId)
+		d.waitTillProvisioned(strings.Join(resp.Headers["Location"], ""))
+		if resp.StatusCode > 299 {
+			return errors.New(string(resp.Body))
+		}
+
+		resp = profitbricks.DeleteLan(d.DatacenterId, d.LanId)
+		d.waitTillProvisioned(strings.Join(resp.Headers["Location"], ""))
+		if resp.StatusCode > 299 {
+			return errors.New(string(resp.Body))
+		}
+	}
+
 	ipblocks := profitbricks.ListIpBlocks()
 
-	for i := 0; i < len(ipblocks.Items); i++ {
-		for _, v := range ipblocks.Items[i].Properties.Ips {
+	for _, i := range ipblocks.Items {
+		for _, v := range i.Properties.Ips {
 			if d.IPAddress == v {
-				resp := profitbricks.ReleaseIpBlock(ipblocks.Items[i].Id)
+				resp := profitbricks.ReleaseIpBlock(i.Id)
 				if resp.StatusCode > 299 {
 					return errors.New(string(resp.Body))
 				}
 			}
 		}
-	}
-
-	if resp.StatusCode > 299 {
-		return errors.New(string(resp.Body))
 	}
 
 	return nil
@@ -443,17 +478,17 @@ func (d *Driver) getImageId(imageName string) string {
 		return ""
 	}
 
-	for i := 0; i < len(images.Items); i++ {
+	for _, image := range images.Items {
 		imgName := ""
-		if images.Items[i].Properties.Name != "" {
-			imgName = images.Items[i].Properties.Name
+		if image.Properties.Name != "" {
+			imgName = image.Properties.Name
 		}
 		diskType := d.DiskType
 		if d.DiskType == "SSD" {
 			diskType = "HDD"
 		}
-		if imgName != "" && strings.Contains(strings.ToLower(imgName), strings.ToLower(imageName)) && images.Items[i].Properties.ImageType == diskType && images.Items[i].Properties.Location == d.Location {
-			return images.Items[i].Id
+		if imgName != "" && strings.Contains(strings.ToLower(imgName), strings.ToLower(imageName)) && image.Properties.ImageType == diskType && image.Properties.Location == d.Location {
+			return image.Id
 		}
 	}
 	return ""
