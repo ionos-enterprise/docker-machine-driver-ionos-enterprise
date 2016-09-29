@@ -1,6 +1,6 @@
 default: build
 
-version := "v1.0.0"
+version := "v1.1.4"
 
 mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 name := $(notdir $(patsubst %/,%,$(dir $(mkfile_path))))
@@ -27,11 +27,11 @@ print-success:
 build: compile print-success
 
 release:
-	GOOS=linux GOARCH=amd64 GOGC=off CGOENABLED=0 go build -i -o bin/$(name) ./bin
+	GOOS=linux GOARCH=amd64 GOGC=off CGOENABLED=0 go build  -i -o bin/$(name) ./bin
 	tar  -cvzf bin/$(name)-$(version)-linux-amd64.tar.gz -C bin $(name)
-	GOOS=darwin GOARCH=amd64 GOGC=off CGOENABLED=0 go build -i -o bin/$(name) ./bin
+	GOOS=darwin GOARCH=amd64 GOGC=off CGOENABLED=0 go build  -i -o bin/$(name) ./bin
 	tar -cvzf bin/$(name)-$(version)-darwin-amd64.tar.gz -C bin $(name)
-	GOOS=windows GOARCH=amd64 GOGC=off CGOENABLED=0 go build -i -o bin/$(name).exe ./bin
+	GOOS=windows GOARCH=amd64 GOGC=off CGOENABLED=0 go build  -i -o bin/$(name).exe ./bin
 	tar -cvzf bin/$(name)-$(version)-windows-amd64.tar.gz -C bin $(name).exe
 
 install: compile

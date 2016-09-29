@@ -159,6 +159,17 @@ func (d *Driver) PreCreateCheck() error {
 	if d.Username == "" {
 		return fmt.Errorf("Please provide username as paramter --profitbricks-username or as environment variable $PROFITBRICKS_USERNAME")
 	}
+	if (d.DatacenterId != "") {
+		d.setPB()
+
+		dc := profitbricks.GetDatacenter(d.DatacenterId)
+
+		if (dc.StatusCode == 404) {
+			return fmt.Errorf("DataCenter UUID %s does not exist.", d.DatacenterId)
+		} else {
+			log.Info("Creating machine under " + dc.Properties.Name + " datacenter.")
+		}
+	}
 	if d.getImageId(d.Image) == "" {
 		return fmt.Errorf("The image %s %s %s", d.Image, d.Location, "does not exist.")
 	}
@@ -204,7 +215,7 @@ func (d *Driver) Create() error {
 			},
 		}
 
-		dc := profitbricks.CompositeCreateDatacenter(dc)
+		dc = profitbricks.CompositeCreateDatacenter(dc)
 		if dc.StatusCode == 202 {
 			log.Info("Datacenter Created")
 		} else {
@@ -281,7 +292,7 @@ func (d *Driver) Create() error {
 	server = profitbricks.CreateServer(dc.Id, server)
 
 	if server.StatusCode == 202 {
-		log.Info("server Created")
+		log.Info("Server Created")
 	} else {
 		d.Remove()
 		return errors.New("Error while creating a server " + string(server.Response) + "Rolling back...")
