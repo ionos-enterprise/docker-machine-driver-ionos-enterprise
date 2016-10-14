@@ -92,37 +92,38 @@ Usage: Usage: docker-machine create [OPTIONS] [arg...]
 
 Options:
    
-   --driver, -d "none"											Driver to create machine with. [$MACHINE_DRIVER]
-   --engine-env [--engine-env option --engine-env option]						Specify environment variables to set in the engine
-   --engine-insecure-registry [--engine-insecure-registry option --engine-insecure-registry option]	Specify insecure registries to allow with the created engine
-   --engine-install-url "https://get.docker.com"							Custom URL to use for engine installation [$MACHINE_DOCKER_INSTALL_URL]
-   --engine-label [--engine-label option --engine-label option]						Specify labels for the created engine
-   --engine-opt [--engine-opt option --engine-opt option]						Specify arbitrary flags to include with the created engine in the form flag=value
-   --engine-registry-mirror [--engine-registry-mirror option --engine-registry-mirror option]		Specify registry mirrors to use [$ENGINE_REGISTRY_MIRROR]
-   --engine-storage-driver 										Specify a storage driver to use with the engine
-   --profitbricks-cores "4"										ProfitBricks cores (2, 3, 4, 5, 6, etc.) [$PROFITBRICKS_CORES]
-   --profitbricks-cpu-family "AMD_OPTERON"								ProfitBricks CPU families (AMD_OPTERON,INTEL_XEON) [$PROFITBRICKS_CPU_FAMILY]
-   --profitbricks-datacenter-id 									ProfitBricks Virtual Data Center Id
-   --profitbricks-disk-size "50"									ProfitBricks disk size (10, 50, 100, 200, 400) [$PROFITBRICKS_DISK_SIZE]
-   --profitbricks-disk-type "HDD"									ProfitBricks disk type (HDD, SSD) [$PROFITBRICKS_DISK_TYPE]
-   --profitbricks-endpoint "https://api.profitbricks.com/rest/v2"					ProfitBricks API endpoint [$PROFITBRICKS_ENDPOINT]
-   --profitbricks-image "Ubuntu-16.04"									ProfitBricks image [$PROFITBRICKS_IMAGE]
-   --profitbricks-location "us/las"									ProfitBricks location [$PROFITBRICKS_LOCATION]
-   --profitbricks-password 										profitbricks password [$PROFITBRICKS_PASSWORD]
-   --profitbricks-ram "2048"										ProfitBricks ram (1024, 2048, 3072, 4096, etc.) [$PROFITBRICKS_RAM]
-   --profitbricks-username 										ProfitBricks username [$PROFITBRICKS_USERNAME]
-   --swarm												Configure Machine to join a Swarm cluster
-   --swarm-addr 											addr to advertise for Swarm (default: detect and use the machine IP)
-   --swarm-discovery 											Discovery service to use with Swarm
-   --swarm-experimental											Enable Swarm experimental features
-   --swarm-host "tcp://0.0.0.0:3376"									ip/socket to listen on for Swarm master
-   --swarm-image "swarm:latest"										Specify Docker image to use for Swarm [$MACHINE_SWARM_IMAGE]
-   --swarm-join-opt [--swarm-join-opt option --swarm-join-opt option]					Define arbitrary flags for Swarm join
-   --swarm-master											Configure Machine to be a Swarm master
-   --swarm-opt [--swarm-opt option --swarm-opt option]							Define arbitrary flags for Swarm master
-   --swarm-strategy "spread"										Define a default scheduling strategy for Swarm
-   --tls-san [--tls-san option --tls-san option]							Support extra SANs for TLS certs
-
+   --driver, -d "none"                                                                                  Driver to create machine with. [$MACHINE_DRIVER]
+   --engine-env [--engine-env option --engine-env option]                                               Specify environment variables to set in the engine
+   --engine-insecure-registry [--engine-insecure-registry option --engine-insecure-registry option]     Specify insecure registries to allow with the created engine
+   --engine-install-url "https://get.docker.com"                                                        Custom URL to use for engine installation [$MACHINE_DOCKER_INSTALL_URL]
+   --engine-label [--engine-label option --engine-label option]                                         Specify labels for the created engine
+   --engine-opt [--engine-opt option --engine-opt option]                                               Specify arbitrary flags to include with the created engine in the form flag=value
+   --engine-registry-mirror [--engine-registry-mirror option --engine-registry-mirror option]           Specify registry mirrors to use [$ENGINE_REGISTRY_MIRROR]
+   --engine-storage-driver                                                                              Specify a storage driver to use with the engine
+   --profitbricks-cores "4"                                                                             ProfitBricks cores (2, 3, 4, 5, 6, etc.) [$PROFITBRICKS_CORES]
+   --profitbricks-cpu-family "AMD_OPTERON"                                                              ProfitBricks CPU families (AMD_OPTERON,INTEL_XEON) [$PROFITBRICKS_CPU_FAMILY]
+   --profitbricks-datacenter-id                                                                         ProfitBricks Virtual Data Center Id
+   --profitbricks-disk-size "50"                                                                        ProfitBricks disk size (10, 50, 100, 200, 400) [$PROFITBRICKS_DISK_SIZE]
+   --profitbricks-disk-type "HDD"                                                                       ProfitBricks disk type (HDD, SSD) [$PROFITBRICKS_DISK_TYPE]
+   --profitbricks-endpoint "https://api.profitbricks.com/cloudapi/v3"                                   ProfitBricks API endpoint [$PROFITBRICKS_ENDPOINT]
+   --profitbricks-image "Ubuntu-16.04"                                                                  ProfitBricks image [$PROFITBRICKS_IMAGE]
+   --profitbricks-location "us/las"                                                                     ProfitBricks location [$PROFITBRICKS_LOCATION]
+   --profitbricks-password                                                                              profitbricks password [$PROFITBRICKS_PASSWORD]
+   --profitbricks-ram "2048"                                                                            ProfitBricks ram (1024, 2048, 3072, 4096, etc.) [$PROFITBRICKS_RAM]
+   --profitbricks-server-availability-zone "AUTO"                                                       ProfitBricks Server Availability Zone (AUTO, ZONE_1, ZONE_2, ZONE_3)
+   --profitbricks-username                                                                              ProfitBricks username [$PROFITBRICKS_USERNAME]
+   --profitbricks-volume-availability-zone "AUTO"                                                       ProfitBricks Volume Availability Zone (AUTO, ZONE_1, ZONE_2, ZONE_3)
+   --swarm                                                                                              Configure Machine to join a Swarm cluster
+   --swarm-addr                                                                                         addr to advertise for Swarm (default: detect and use the machine IP)
+   --swarm-discovery                                                                                    Discovery service to use with Swarm
+   --swarm-experimental                                                                                 Enable Swarm experimental features
+   --swarm-host "tcp://0.0.0.0:3376"                                                                    ip/socket to listen on for Swarm master
+   --swarm-image "swarm:latest"                                                                         Specify Docker image to use for Swarm [$MACHINE_SWARM_IMAGE]
+   --swarm-join-opt [--swarm-join-opt option --swarm-join-opt option]                                   Define arbitrary flags for Swarm join
+   --swarm-master                                                                                       Configure Machine to be a Swarm master
+   --swarm-opt [--swarm-opt option --swarm-opt option]                                                  Define arbitrary flags for Swarm master
+   --swarm-strategy "spread"                                                                            Define a default scheduling strategy for Swarm
+   --tls-san [--tls-san option --tls-san option]                                                        Support extra SANs for TLS certs
 ```
 
 To list the machines you have created, use the command:

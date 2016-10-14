@@ -18,22 +18,24 @@ import (
 
 type Driver struct {
 	*drivers.BaseDriver
-	URL          string
-	Username     string
-	Password     string
-	ServerId     string
-	Ram          int
-	Cores        int
-	SSHKey       string
-	DatacenterId string
-	DiskSize     int
-	DiskType     string
-	Image        string
-	Size         int
-	Location     string
-	CpuFamily    string
-	DCExists     bool
-	LanId        string
+	URL              string
+	Username         string
+	Password         string
+	ServerId         string
+	Ram              int
+	Cores            int
+	SSHKey           string
+	DatacenterId     string
+	VolumeAvailabilityZone string
+	ServerAvailabilityZone string
+	DiskSize         int
+	DiskType         string
+	Image            string
+	Size             int
+	Location         string
+	CpuFamily        string
+	DCExists         bool
+	LanId            string
 }
 
 const (
@@ -47,7 +49,7 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 		mcnflag.StringFlag{
 			EnvVar: "PROFITBRICKS_ENDPOINT",
 			Name:   "profitbricks-endpoint",
-			Value:  "https://api.profitbricks.com/rest/v2",
+			Value:  "https://api.profitbricks.com/cloudapi/v3",
 			Usage:  "ProfitBricks API endpoint",
 		},
 		mcnflag.StringFlag{
@@ -106,6 +108,17 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 			Name:   "profitbricks-datacenter-id",
 			Usage:  "ProfitBricks Virtual Data Center Id",
 		},
+		mcnflag.StringFlag{
+			Name:   "profitbricks-volume-availability-zone",
+			Value: "AUTO",
+			Usage:  "ProfitBricks Volume Availability Zone (AUTO, ZONE_1, ZONE_2, ZONE_3)",
+		},
+		mcnflag.StringFlag{
+			Name:   "profitbricks-server-availability-zone",
+			Value: "AUTO",
+			Usage:  "ProfitBricks Server Availability Zone (AUTO, ZONE_1, ZONE_2, ZONE_3)",
+		},
+
 	}
 }
 
@@ -145,11 +158,13 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	d.SwarmDiscovery = flags.String("swarm-discovery")
 	d.CpuFamily = flags.String("profitbricks-cpu-family")
 	d.DatacenterId = flags.String("profitbricks-datacenter-id")
+	d.VolumeAvailabilityZone= flags.String("profitbricks-volume-availability-zone")
+	d.ServerAvailabilityZone= flags.String("profitbricks-server-availability-zone")
 
 	d.SetSwarmConfigFromFlags(flags)
 
 	if d.URL == "" {
-		d.URL = "https://api.profitbricks.com/rest/v2"
+		d.URL = "https://api.profitbricks.com/cloudapi/v3"
 	}
 
 	return nil
@@ -257,17 +272,19 @@ func (d *Driver) Create() error {
 			Ram:   d.Ram,
 			Cores: d.Cores,
 			CpuFamily: d.CpuFamily,
+			AvailabilityZone: d.ServerAvailabilityZone,
 		},
 		Entities: &profitbricks.ServerEntities{
 			Volumes: &profitbricks.Volumes{
 				Items: []profitbricks.Volume{
-					profitbricks.Volume{
+					{
 						Properties: profitbricks.VolumeProperties{
 							Type:    d.DiskType,
 							Size:    d.DiskSize,
 							Name:    d.MachineName,
 							Image:   image,
 							SshKeys: []string{d.SSHKey},
+							AvailabilityZone: d.VolumeAvailabilityZone,
 						},
 					},
 				},
