@@ -18,30 +18,30 @@ import (
 
 type Driver struct {
 	*drivers.BaseDriver
-	URL              string
-	Username         string
-	Password         string
-	ServerId         string
-	Ram              int
-	Cores            int
-	SSHKey           string
-	DatacenterId     string
+	URL                    string
+	Username               string
+	Password               string
+	ServerId               string
+	Ram                    int
+	Cores                  int
+	SSHKey                 string
+	DatacenterId           string
 	VolumeAvailabilityZone string
 	ServerAvailabilityZone string
-	DiskSize         int
-	DiskType         string
-	Image            string
-	Size             int
-	Location         string
-	CpuFamily        string
-	DCExists         bool
-	LanId            string
+	DiskSize               int
+	DiskType               string
+	Image                  string
+	Size                   int
+	Location               string
+	CpuFamily              string
+	DCExists               bool
+	LanId                  string
 }
 
 const (
-	defaultRegion = "us/lasdev"
+	defaultRegion = "us/las"
 	defaultSize = 10
-	waitCount = 100
+	waitCount = 1000
 )
 
 func (d *Driver) GetCreateFlags() []mcnflag.Flag {
@@ -158,8 +158,8 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	d.SwarmDiscovery = flags.String("swarm-discovery")
 	d.CpuFamily = flags.String("profitbricks-cpu-family")
 	d.DatacenterId = flags.String("profitbricks-datacenter-id")
-	d.VolumeAvailabilityZone= flags.String("profitbricks-volume-availability-zone")
-	d.ServerAvailabilityZone= flags.String("profitbricks-server-availability-zone")
+	d.VolumeAvailabilityZone = flags.String("profitbricks-volume-availability-zone")
+	d.ServerAvailabilityZone = flags.String("profitbricks-server-availability-zone")
 
 	d.SetSwarmConfigFromFlags(flags)
 
@@ -217,7 +217,10 @@ func (d *Driver) Create() error {
 		return fmt.Errorf("An error occurred while reserving an ipblock: %s", ipblockresp.StatusCode)
 	}
 
-	d.waitTillProvisioned(ipblockresp.Headers.Get("Location"))
+	err = d.waitTillProvisioned(ipblockresp.Headers.Get("Location"))
+	if err != nil {
+		return err
+	}
 
 	var dc profitbricks.Datacenter
 
@@ -237,7 +240,10 @@ func (d *Driver) Create() error {
 			return errors.New("Error while creating DC: " + string(dc.Response))
 
 		}
-		d.waitTillProvisioned(dc.Headers.Get("Location"))
+		err = d.waitTillProvisioned(dc.Headers.Get("Location"))
+		if err != nil {
+			return err
+		}
 	} else {
 		d.DCExists = true
 		dc = profitbricks.GetDatacenter(d.DatacenterId)
@@ -260,7 +266,10 @@ func (d *Driver) Create() error {
 
 	d.DatacenterId = dc.Id
 
-	d.waitTillProvisioned(lan.Headers.Get("Location"))
+	err = d.waitTillProvisioned(lan.Headers.Get("Location"))
+	if err != nil {
+		return err
+	}
 
 	lanId, _ := strconv.Atoi(lan.Id)
 
@@ -315,7 +324,10 @@ func (d *Driver) Create() error {
 		return errors.New("Error while creating a server " + string(server.Response) + "Rolling back...")
 	}
 
-	d.waitTillProvisioned(server.Headers.Get("Location"))
+	err = d.waitTillProvisioned(server.Headers.Get("Location"))
+	if err != nil {
+		return err
+	}
 	d.ServerId = server.Id
 
 	d.IPAddress = ipblockresp.Properties.Ips[0]
@@ -484,16 +496,21 @@ func (d *Driver) isSwarmMaster() bool {
 	return d.SwarmMaster
 }
 
-func (d *Driver) waitTillProvisioned(path string) {
+func (d *Driver) waitTillProvisioned(path string) error {
 	d.setPB()
 	for i := 0; i < waitCount; i++ {
 		request := profitbricks.GetRequestStatus(path)
 		if request.Metadata.Status == "DONE" {
-			break
+			return nil
+		}
+		if request.Metadata.Status == "FAILED" {
+			return errors.New(request.Metadata.Message)
 		}
 		time.Sleep(10 * time.Second)
 		i++
 	}
+
+	return errors.New("Timeout has expired.")
 }
 
 func (d *Driver) getImageId(imageName string) string {
