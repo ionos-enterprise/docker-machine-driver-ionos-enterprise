@@ -347,22 +347,27 @@ func (d *Driver) Remove() error {
 	d.setPB()
 
 	if (!d.DCExists) {
-		resp := profitbricks.DeleteDatacenter(d.DatacenterId)
-		d.waitTillProvisioned(strings.Join(resp.Headers["Location"], ""))
-		if resp.StatusCode > 299 {
-			return errors.New(string(resp.Body))
+		servers := profitbricks.ListServers(d.DatacenterId)
+		if (len(servers.Items) == 1) {
+			resp := profitbricks.DeleteDatacenter(d.DatacenterId)
+			if resp.StatusCode > 299 {
+				return errors.New(string(resp.Body))
+			}
+
+			err := d.waitTillProvisioned(strings.Join(resp.Headers["Location"], ""))
+			if err != nil {
+				return err
+			}
+		} else {
+			err := d.removeServer(d.DatacenterId, d.ServerId, d.LanId)
+			if err != nil {
+				return err
+			}
 		}
 	} else {
-		resp := profitbricks.DeleteServer(d.DatacenterId, d.ServerId)
-		d.waitTillProvisioned(strings.Join(resp.Headers["Location"], ""))
-		if resp.StatusCode > 299 {
-			return errors.New(string(resp.Body))
-		}
-
-		resp = profitbricks.DeleteLan(d.DatacenterId, d.LanId)
-		d.waitTillProvisioned(strings.Join(resp.Headers["Location"], ""))
-		if resp.StatusCode > 299 {
-			return errors.New(string(resp.Body))
+		err := d.removeServer(d.DatacenterId, d.ServerId, d.LanId)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -381,7 +386,46 @@ func (d *Driver) Remove() error {
 
 	return nil
 }
+func (d *Driver) removeServer(datacenterId string, serverId string, lanId string) error {
+	server := profitbricks.GetServer(datacenterId, serverId)
 
+	if server.StatusCode > 299 {
+		return errors.New(server.Response)
+	}
+
+	if (server.Entities != nil && server.Entities.Volumes != nil && len(server.Entities.Volumes.Items) > 0) {
+		volumeId := server.Entities.Volumes.Items[0].Id
+		resp := profitbricks.DeleteVolume(d.DatacenterId, volumeId)
+		if resp.StatusCode > 299 {
+			return errors.New(string(resp.Body))
+		}
+		err := d.waitTillProvisioned(resp.Headers.Get("Location"))
+
+		if err != nil {
+			return err
+		}
+	}
+	resp := profitbricks.DeleteServer(datacenterId, serverId)
+	if resp.StatusCode > 299 {
+		return errors.New(string(resp.Body))
+	}
+
+	err := d.waitTillProvisioned(strings.Join(resp.Headers["Location"], ""))
+	if err != nil {
+		return err
+	}
+
+	resp = profitbricks.DeleteLan(datacenterId, lanId)
+	if resp.StatusCode > 299 {
+		return errors.New(string(resp.Body))
+	}
+
+	err = d.waitTillProvisioned(strings.Join(resp.Headers["Location"], ""))
+	if err != nil {
+		return err
+	}
+	return nil
+}
 func (d *Driver) GetURL() (string, error) {
 	if err := drivers.MustBeRunning(d); err != nil {
 		return "", err
