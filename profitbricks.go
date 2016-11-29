@@ -516,6 +516,7 @@ func (d *Driver) GetState() (state.State, error) {
 //Private helper functions
 func (d *Driver) setPB() {
 	profitbricks.SetAuth(d.Username, d.Password)
+	profitbricks.SetUserAgent(fmt.Sprintf("%s %s", profitbricks.AgentHeader + "docker-machine-driver-profitbricks/1.2.3"))
 	profitbricks.SetEndpoint(d.URL)
 }
 
