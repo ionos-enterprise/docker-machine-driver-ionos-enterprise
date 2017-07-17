@@ -3,8 +3,6 @@ package profitbricks
 import (
 	"errors"
 	"fmt"
-	"time"
-
 	"github.com/docker/machine/libmachine/drivers"
 	"github.com/docker/machine/libmachine/log"
 	"github.com/docker/machine/libmachine/mcnflag"
@@ -14,6 +12,7 @@ import (
 	"io/ioutil"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Driver struct {
@@ -35,13 +34,14 @@ type Driver struct {
 	Location               string
 	CpuFamily              string
 	DCExists               bool
+	UseAlias               bool
 	LanId                  string
 }
 
 const (
 	defaultRegion = "us/las"
-	defaultSize = 10
-	waitCount = 1000
+	defaultSize   = 10
+	waitCount     = 1000
 )
 
 func (d *Driver) GetCreateFlags() []mcnflag.Flag {
@@ -49,7 +49,7 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 		mcnflag.StringFlag{
 			EnvVar: "PROFITBRICKS_ENDPOINT",
 			Name:   "profitbricks-endpoint",
-			Value:  "https://api.profitbricks.com/cloudapi/v3",
+			Value:  "https://api.profitbricks.com/cloudapi/v4",
 			Usage:  "ProfitBricks API endpoint",
 		},
 		mcnflag.StringFlag{
@@ -105,20 +105,19 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 			Usage:  "ProfitBricks CPU families (AMD_OPTERON,INTEL_XEON)",
 		},
 		mcnflag.StringFlag{
-			Name:   "profitbricks-datacenter-id",
-			Usage:  "ProfitBricks Virtual Data Center Id",
+			Name:  "profitbricks-datacenter-id",
+			Usage: "ProfitBricks Virtual Data Center Id",
 		},
 		mcnflag.StringFlag{
-			Name:   "profitbricks-volume-availability-zone",
+			Name:  "profitbricks-volume-availability-zone",
 			Value: "AUTO",
-			Usage:  "ProfitBricks Volume Availability Zone (AUTO, ZONE_1, ZONE_2, ZONE_3)",
+			Usage: "ProfitBricks Volume Availability Zone (AUTO, ZONE_1, ZONE_2, ZONE_3)",
 		},
 		mcnflag.StringFlag{
-			Name:   "profitbricks-server-availability-zone",
+			Name:  "profitbricks-server-availability-zone",
 			Value: "AUTO",
-			Usage:  "ProfitBricks Server Availability Zone (AUTO, ZONE_1, ZONE_2, ZONE_3)",
+			Usage: "ProfitBricks Server Availability Zone (AUTO, ZONE_1, ZONE_2, ZONE_3)",
 		},
-
 	}
 }
 
@@ -145,7 +144,6 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 
 	d.URL = flags.String("profitbricks-endpoint")
 	d.Username = flags.String("profitbricks-username")
-
 	d.Password = flags.String("profitbricks-password")
 	d.DiskSize = flags.Int("profitbricks-disk-size")
 	d.Image = flags.String("profitbricks-image")
@@ -160,11 +158,10 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	d.DatacenterId = flags.String("profitbricks-datacenter-id")
 	d.VolumeAvailabilityZone = flags.String("profitbricks-volume-availability-zone")
 	d.ServerAvailabilityZone = flags.String("profitbricks-server-availability-zone")
-
 	d.SetSwarmConfigFromFlags(flags)
 
 	if d.URL == "" {
-		d.URL = "https://api.profitbricks.com/cloudapi/v3"
+		d.URL = "https://api.profitbricks.com/cloudapi/v4"
 	}
 
 	return nil
@@ -174,20 +171,22 @@ func (d *Driver) PreCreateCheck() error {
 	if d.Username == "" {
 		return fmt.Errorf("Please provide username as paramter --profitbricks-username or as environment variable $PROFITBRICKS_USERNAME")
 	}
-	if (d.DatacenterId != "") {
+	if d.DatacenterId != "" {
 		d.setPB()
 
 		dc := profitbricks.GetDatacenter(d.DatacenterId)
 
-		if (dc.StatusCode == 404) {
+		if dc.StatusCode == 404 {
 			return fmt.Errorf("DataCenter UUID %s does not exist.", d.DatacenterId)
 		} else {
 			log.Info("Creating machine under " + dc.Properties.Name + " datacenter.")
 		}
 	}
+
 	if d.getImageId(d.Image) == "" {
-		return fmt.Errorf("The image %s %s %s", d.Image, d.Location, "does not exist.")
+		return fmt.Errorf("The image/alias  %s %s %s", d.Image, d.Location, "does not exist.")
 	}
+
 	return nil
 }
 
@@ -196,13 +195,20 @@ func (d *Driver) Create() error {
 	d.setPB()
 
 	var err error
+	var image string
+	var alias string
 	if d.SSHKey == "" {
 		d.SSHKey, err = d.createSSHKey()
 		if err != nil {
 			return err
 		}
 	}
-	image := d.getImageId(d.Image)
+	var result = d.getImageId(d.Image)
+	if !d.UseAlias {
+		image = result
+	} else {
+		alias = result
+	}
 
 	ipblockreq := profitbricks.IpBlock{
 		Properties: profitbricks.IpBlockProperties{
@@ -224,7 +230,7 @@ func (d *Driver) Create() error {
 
 	var dc profitbricks.Datacenter
 
-	if (d.DatacenterId == "") {
+	if d.DatacenterId == "" {
 		d.DCExists = false
 		dc = profitbricks.Datacenter{
 			Properties: profitbricks.DatacenterProperties{
@@ -274,13 +280,12 @@ func (d *Driver) Create() error {
 	lanId, _ := strconv.Atoi(lan.Id)
 
 	d.LanId = lan.Id
-
 	server := profitbricks.Server{
 		Properties: profitbricks.ServerProperties{
-			Name:  d.MachineName,
-			Ram:   d.Ram,
-			Cores: d.Cores,
-			CpuFamily: d.CpuFamily,
+			Name:             d.MachineName,
+			Ram:              d.Ram,
+			Cores:            d.Cores,
+			CpuFamily:        d.CpuFamily,
 			AvailabilityZone: d.ServerAvailabilityZone,
 		},
 		Entities: &profitbricks.ServerEntities{
@@ -288,11 +293,12 @@ func (d *Driver) Create() error {
 				Items: []profitbricks.Volume{
 					{
 						Properties: profitbricks.VolumeProperties{
-							Type:    d.DiskType,
-							Size:    d.DiskSize,
-							Name:    d.MachineName,
-							Image:   image,
-							SshKeys: []string{d.SSHKey},
+							Type:             d.DiskType,
+							Size:             d.DiskSize,
+							Name:             d.MachineName,
+							Image:            image,
+							ImageAlias:       alias,
+							SshKeys:          []string{d.SSHKey},
 							AvailabilityZone: d.VolumeAvailabilityZone,
 						},
 					},
@@ -302,7 +308,7 @@ func (d *Driver) Create() error {
 	}
 
 	nic := profitbricks.Nic{
-		Properties: profitbricks.NicProperties{
+		Properties: &profitbricks.NicProperties{
 			Name: d.MachineName,
 			Lan:  lanId,
 			Ips:  ipblockresp.Properties.Ips,
@@ -343,12 +349,13 @@ func (d *Driver) Restart() error {
 	}
 	return nil
 }
+
 func (d *Driver) Remove() error {
 	d.setPB()
 
-	if (!d.DCExists) {
+	if !d.DCExists {
 		servers := profitbricks.ListServers(d.DatacenterId)
-		if (len(servers.Items) == 1) {
+		if len(servers.Items) == 1 {
 			resp := profitbricks.DeleteDatacenter(d.DatacenterId)
 			if resp.StatusCode > 299 {
 				return errors.New(string(resp.Body))
@@ -386,6 +393,7 @@ func (d *Driver) Remove() error {
 
 	return nil
 }
+
 func (d *Driver) removeServer(datacenterId string, serverId string, lanId string) error {
 	server := profitbricks.GetServer(datacenterId, serverId)
 
@@ -393,7 +401,7 @@ func (d *Driver) removeServer(datacenterId string, serverId string, lanId string
 		return errors.New(server.Response)
 	}
 
-	if (server.Entities != nil && server.Entities.Volumes != nil && len(server.Entities.Volumes.Items) > 0) {
+	if server.Entities != nil && server.Entities.Volumes != nil && len(server.Entities.Volumes.Items) > 0 {
 		volumeId := server.Entities.Volumes.Items[0].Id
 		resp := profitbricks.DeleteVolume(d.DatacenterId, volumeId)
 		if resp.StatusCode > 299 {
@@ -426,6 +434,7 @@ func (d *Driver) removeServer(datacenterId string, serverId string, lanId string
 	}
 	return nil
 }
+
 func (d *Driver) GetURL() (string, error) {
 	if err := drivers.MustBeRunning(d); err != nil {
 		return "", err
@@ -477,6 +486,7 @@ func (d *Driver) Kill() error {
 	}
 	return nil
 }
+
 func (d *Driver) GetIP() (string, error) {
 	d.setPB()
 	server := profitbricks.GetServer(d.DatacenterId, d.ServerId)
@@ -516,7 +526,7 @@ func (d *Driver) GetState() (state.State, error) {
 //Private helper functions
 func (d *Driver) setPB() {
 	profitbricks.SetAuth(d.Username, d.Password)
-	profitbricks.SetUserAgent(fmt.Sprintf("%s %s", profitbricks.AgentHeader + "docker-machine-driver-profitbricks/1.2.3"))
+	profitbricks.SetUserAgent(fmt.Sprintf("%s %s", profitbricks.AgentHeader+"docker-machine-driver-profitbricks/1.2.3"))
 	profitbricks.SetEndpoint(d.URL)
 }
 
@@ -560,7 +570,18 @@ func (d *Driver) waitTillProvisioned(path string) error {
 
 func (d *Driver) getImageId(imageName string) string {
 	d.setPB()
+	d.UseAlias = false
+	//first look if the provided parameter matches an alias, if a match is found we return the image alias
+	location := profitbricks.GetLocation(d.Location)
 
+	for _, alias := range location.Properties.ImageAliases {
+		if alias == imageName {
+			d.UseAlias = true
+			return imageName
+		}
+	}
+
+	//if no alias matchs we do extended search and return the image id
 	images := profitbricks.ListImages()
 
 	if images.StatusCode == 401 {

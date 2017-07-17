@@ -36,7 +36,7 @@ release:
 
 install: compile
 ifeq ($(OS),Windows_NT)
-	cp bin/$(name) /usr/local/bin/
+	cp bin/$(name) $(GOPATH)/bin/
 else
 	cp ./bin/$(name)$(bin_suffix) $(GOPATH)/bin/
 endif
