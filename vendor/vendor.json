@@ -82,6 +82,12 @@
 			"revisionTime": "2017-07-13T10:35:16Z"
 		},
 		{
+			"checksumSHA1": "Kq0fF7R65dDcGReuhf47O3LQgrY=",
+			"path": "github.com/profitbricks/profitbricks-sdk-go",
+			"revision": "7bdb11aecb0e457ea23c86898c6b49bfc0eb4bb1",
+			"revisionTime": "2017-08-01T13:52:49Z"
+		},
+		{
 			"checksumSHA1": "AMBhAXNq0e9HUcBFbcnSDEU5w5k=",
 			"origin": "github.com/docker/machine/vendor/golang.org/x/crypto/curve25519",
 			"path": "golang.org/x/crypto/curve25519",
@@ -109,5 +115,5 @@
 			"revisionTime": "2017-07-04T08:52:36Z"
 		}
 	],
-	"rootPath": "docker-machine-driver-profitbricks"
+	"rootPath": "github.com/profitbricks/docker-machine-driver-profitbricks"
 }

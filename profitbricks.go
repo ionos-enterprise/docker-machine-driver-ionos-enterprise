@@ -255,8 +255,8 @@ func (d *Driver) Create() error {
 		dc = profitbricks.GetDatacenter(d.DatacenterId)
 	}
 
-	lan := profitbricks.CreateLan(dc.Id, profitbricks.Lan{
-		Properties: profitbricks.LanProperties{
+	lan := profitbricks.CreateLan(dc.Id, profitbricks.CreateLanRequest{
+		Properties: profitbricks.CreateLanProperties{
 			Public: true,
 			Name:   d.MachineName,
 		},
