@@ -115,5 +115,5 @@
 			"revisionTime": "2017-07-04T08:52:36Z"
 		}
 	],
-	"rootPath": "docker-machine-driver-profitbricks"
+	"rootPath": "github.com/profitbricks/docker-machine-driver-profitbricks"
 }
