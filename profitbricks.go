@@ -312,6 +312,7 @@ func (d *Driver) Create() error {
 			Name: d.MachineName,
 			Lan:  lanId,
 			Ips:  ipblockresp.Properties.Ips,
+			Dhcp: true,
 		},
 	}
 
