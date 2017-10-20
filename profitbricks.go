@@ -503,6 +503,16 @@ func (d *Driver) GetState() (state.State, error) {
 	d.setPB()
 	server := profitbricks.GetServer(d.DatacenterId, d.ServerId)
 
+	if server.StatusCode > 299{
+
+		if server.StatusCode == 401{
+			return state.None, fmt.Errorf("Unauthorized. Either user name or password are incorrect.")
+
+		}		else {
+			return state.None, fmt.Errorf("Error occurred while fetching a server: %s", server.Response)
+		}
+	}
+
 	switch server.Metadata.State {
 	case "NOSTATE":
 		return state.None, nil
