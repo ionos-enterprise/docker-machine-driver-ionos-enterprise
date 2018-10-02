@@ -82,10 +82,12 @@
 			"revisionTime": "2017-07-13T10:35:16Z"
 		},
 		{
-			"checksumSHA1": "Kq0fF7R65dDcGReuhf47O3LQgrY=",
+			"checksumSHA1": "NUA10ZEhnawSPfTQiLMInYUMXKQ=",
 			"path": "github.com/profitbricks/profitbricks-sdk-go",
-			"revision": "7bdb11aecb0e457ea23c86898c6b49bfc0eb4bb1",
-			"revisionTime": "2017-08-01T13:52:49Z"
+			"revision": "7b96ba54985dd7ab7c944105c76dc6b35152a3c2",
+			"revisionTime": "2018-07-03T14:07:10Z",
+			"version": "v5.0.1",
+			"versionExact": "v5.0.1"
 		},
 		{
 			"checksumSHA1": "AMBhAXNq0e9HUcBFbcnSDEU5w5k=",
@@ -107,12 +109,6 @@
 			"path": "golang.org/x/crypto/ssh/terminal",
 			"revision": "d8dd3880ecfef8988aa64f2b0313062019dea043",
 			"revisionTime": "2017-06-30T17:23:39Z"
-		},
-		{
-			"checksumSHA1": "ge6v68jHQCeEx6myXgPDUl53vq0=",
-			"path": "profitbricks-sdk-go",
-			"revision": "2dedeeedfba28e6c57e913bbd19a27043c5f88f0",
-			"revisionTime": "2017-07-04T08:52:36Z"
 		}
 	],
 	"rootPath": "github.com/profitbricks/docker-machine-driver-profitbricks"
