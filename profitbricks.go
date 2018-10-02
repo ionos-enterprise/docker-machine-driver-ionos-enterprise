@@ -37,7 +37,6 @@ type Driver struct {
 	DCExists               bool
 	UseAlias               bool
 	LanId                  string
-	client                 *profitbricks.Client
 }
 
 const (
@@ -124,7 +123,7 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 }
 
 func NewDriver(hostName, storePath string) drivers.Driver {
-	driver := &Driver{
+	return &Driver{
 		Size:     defaultSize,
 		Location: defaultRegion,
 		BaseDriver: &drivers.BaseDriver{
@@ -132,9 +131,6 @@ func NewDriver(hostName, storePath string) drivers.Driver {
 			StorePath:   storePath,
 		},
 	}
-	driver.setPB()
-
-	return driver
 }
 
 func (d *Driver) GetSSHHostname() (string, error) {
@@ -177,12 +173,15 @@ func (d *Driver) PreCreateCheck() error {
 		return fmt.Errorf("Please provide username as paramter --profitbricks-username or as environment variable $PROFITBRICKS_USERNAME")
 	}
 	if d.DatacenterId != "" {
-		dc, err := d.client.GetDatacenter(d.DatacenterId)
+		d.setPB()
 
-		if err != nil {
-			return fmt.Errorf("An error occurred while fetching datacenter '%s': %s", d.DatacenterId, dc.Response)
+		dc := profitbricks.GetDatacenter(d.DatacenterId)
+
+		if dc.StatusCode == 404 {
+			return fmt.Errorf("DataCenter UUID %s does not exist.", d.DatacenterId)
+		} else {
+			log.Info("Creating machine under " + dc.Properties.Name + " datacenter.")
 		}
-		log.Info("Creating machine under " + dc.Properties.Name + " datacenter.")
 	}
 
 	if d.getImageId(d.Image) == "" {
@@ -193,6 +192,9 @@ func (d *Driver) PreCreateCheck() error {
 }
 
 func (d *Driver) Create() error {
+
+	d.setPB()
+
 	var err error
 	var image string
 	var alias string
@@ -209,16 +211,16 @@ func (d *Driver) Create() error {
 		alias = result
 	}
 
-	ipblockreq := profitbricks.IPBlock{
-		Properties: profitbricks.IPBlockProperties{
+	ipblockreq := profitbricks.IpBlock{
+		Properties: profitbricks.IpBlockProperties{
 			Size:     1,
 			Location: d.Location,
 		},
 	}
 
-	ipblockresp, err := d.client.ReserveIPBlock(ipblockreq)
+	ipblockresp := profitbricks.ReserveIpBlock(ipblockreq)
 
-	if err != nil {
+	if ipblockresp.StatusCode > 299 {
 		return fmt.Errorf("An error occurred while reserving an ipblock: %s", ipblockresp.Response)
 	}
 
@@ -227,19 +229,19 @@ func (d *Driver) Create() error {
 		return err
 	}
 
-	var dc *profitbricks.Datacenter
+	var dc profitbricks.Datacenter
 
 	if d.DatacenterId == "" {
 		d.DCExists = false
-		req := profitbricks.Datacenter{
+		dc = profitbricks.Datacenter{
 			Properties: profitbricks.DatacenterProperties{
 				Name:     d.MachineName,
 				Location: d.Location,
 			},
 		}
 
-		dc, err = d.client.CreateDatacenter(req)
-		if err == nil {
+		dc = profitbricks.CompositeCreateDatacenter(dc)
+		if dc.StatusCode == 202 {
 			log.Info("Datacenter Created")
 		} else {
 			return errors.New("Error while creating DC: " + string(dc.Response))
@@ -251,11 +253,11 @@ func (d *Driver) Create() error {
 		}
 	} else {
 		d.DCExists = true
-		dc, _ = d.client.GetDatacenter(d.DatacenterId)
+		dc = profitbricks.GetDatacenter(d.DatacenterId)
 	}
 
-	lan, _ := d.client.CreateLan(dc.ID, profitbricks.Lan{
-		Properties: profitbricks.LanProperties{
+	lan := profitbricks.CreateLan(dc.Id, profitbricks.CreateLanRequest{
+		Properties: profitbricks.CreateLanProperties{
 			Public: true,
 			Name:   d.MachineName,
 		},
@@ -269,22 +271,22 @@ func (d *Driver) Create() error {
 		return errors.New("Error while creating a LAN " + string(lan.Response) + "Rolling back...")
 	}
 
-	d.DatacenterId = dc.ID
+	d.DatacenterId = dc.Id
 
 	err = d.waitTillProvisioned(lan.Headers.Get("Location"))
 	if err != nil {
 		return err
 	}
 
-	lanId, _ := strconv.Atoi(lan.ID)
+	lanId, _ := strconv.Atoi(lan.Id)
 
-	d.LanId = lan.ID
-	serverReq := profitbricks.Server{
+	d.LanId = lan.Id
+	server := profitbricks.Server{
 		Properties: profitbricks.ServerProperties{
 			Name:             d.MachineName,
-			RAM:              d.Ram,
+			Ram:              d.Ram,
 			Cores:            d.Cores,
-			CPUFamily:        d.CpuFamily,
+			CpuFamily:        d.CpuFamily,
 			AvailabilityZone: d.ServerAvailabilityZone,
 		},
 		Entities: &profitbricks.ServerEntities{
@@ -297,7 +299,7 @@ func (d *Driver) Create() error {
 							Name:             d.MachineName,
 							Image:            image,
 							ImageAlias:       alias,
-							SSHKeys:          []string{d.SSHKey},
+							SshKeys:          []string{d.SSHKey},
 							AvailabilityZone: d.VolumeAvailabilityZone,
 						},
 					},
@@ -306,25 +308,24 @@ func (d *Driver) Create() error {
 		},
 	}
 
-	dhcp := true
 	nic := profitbricks.Nic{
 		Properties: &profitbricks.NicProperties{
 			Name: d.MachineName,
 			Lan:  lanId,
-			Ips:  ipblockresp.Properties.IPs,
-			Dhcp: &dhcp,
+			Ips:  ipblockresp.Properties.Ips,
+			Dhcp: true,
 		},
 	}
 
-	serverReq.Entities.Nics = &profitbricks.Nics{
+	server.Entities.Nics = &profitbricks.Nics{
 		Items: []profitbricks.Nic{
 			nic,
 		},
 	}
 
-	server, err := d.client.CreateServer(dc.ID, serverReq)
+	server = profitbricks.CreateServer(dc.Id, server)
 
-	if err == nil {
+	if server.StatusCode == 202 {
 		log.Info("Server Created")
 	} else {
 		d.Remove()
@@ -335,28 +336,34 @@ func (d *Driver) Create() error {
 	if err != nil {
 		return err
 	}
-	d.ServerId = server.ID
+	d.ServerId = server.Id
 
-	d.IPAddress = ipblockresp.Properties.IPs[0]
+	d.IPAddress = ipblockresp.Properties.Ips[0]
 	log.Info(d.IPAddress)
 	return nil
 }
 
 func (d *Driver) Restart() error {
-	_, err := d.client.RebootServer(d.DatacenterId, d.ServerId)
-	return err
+	d.setPB()
+	resp := profitbricks.RebootServer(d.DatacenterId, d.ServerId)
+	if resp.StatusCode != 202 {
+		return errors.New(string(resp.Body))
+	}
+	return nil
 }
 
 func (d *Driver) Remove() error {
+	d.setPB()
+
 	if !d.DCExists {
-		servers, _ := d.client.ListServers(d.DatacenterId)
+		servers := profitbricks.ListServers(d.DatacenterId)
 		if len(servers.Items) == 1 {
-			resp, err := d.client.DeleteDatacenter(d.DatacenterId)
-			if err != nil {
-				return err
+			resp := profitbricks.DeleteDatacenter(d.DatacenterId)
+			if resp.StatusCode > 299 {
+				return errors.New(string(resp.Body))
 			}
 
-			err = d.waitTillProvisioned(resp.Get("Location"))
+			err := d.waitTillProvisioned(strings.Join(resp.Headers["Location"], ""))
 			if err != nil {
 				return err
 			}
@@ -373,14 +380,14 @@ func (d *Driver) Remove() error {
 		}
 	}
 
-	ipblocks, _ := d.client.ListIPBlocks()
+	ipblocks := profitbricks.ListIpBlocks()
 
 	for _, i := range ipblocks.Items {
-		for _, v := range i.Properties.IPs {
+		for _, v := range i.Properties.Ips {
 			if d.IPAddress == v {
-				_, err := d.client.ReleaseIPBlock(i.ID)
-				if err != nil {
-					return err
+				resp := profitbricks.ReleaseIpBlock(i.Id)
+				if resp.StatusCode > 299 {
+					return errors.New(string(resp.Body))
 				}
 			}
 		}
@@ -390,40 +397,40 @@ func (d *Driver) Remove() error {
 }
 
 func (d *Driver) removeServer(datacenterId string, serverId string, lanId string) error {
-	server, _ := d.client.GetServer(datacenterId, serverId)
+	server := profitbricks.GetServer(datacenterId, serverId)
 
 	if server.StatusCode > 299 {
 		return errors.New(server.Response)
 	}
 
 	if server.Entities != nil && server.Entities.Volumes != nil && len(server.Entities.Volumes.Items) > 0 {
-		volumeId := server.Entities.Volumes.Items[0].ID
-		resp, err := d.client.DeleteVolume(d.DatacenterId, volumeId)
+		volumeId := server.Entities.Volumes.Items[0].Id
+		resp := profitbricks.DeleteVolume(d.DatacenterId, volumeId)
+		if resp.StatusCode > 299 {
+			return errors.New(string(resp.Body))
+		}
+		err := d.waitTillProvisioned(resp.Headers.Get("Location"))
+
 		if err != nil {
 			return err
 		}
-		err = d.waitTillProvisioned(resp.Get("Location"))
-
-		if err != nil {
-			return err
-		}
 	}
-	resp, err := d.client.DeleteServer(datacenterId, serverId)
+	resp := profitbricks.DeleteServer(datacenterId, serverId)
+	if resp.StatusCode > 299 {
+		return errors.New(string(resp.Body))
+	}
+
+	err := d.waitTillProvisioned(strings.Join(resp.Headers["Location"], ""))
 	if err != nil {
 		return err
 	}
 
-	err = d.waitTillProvisioned(resp.Get("Location"))
-	if err != nil {
-		return err
+	resp = profitbricks.DeleteLan(datacenterId, lanId)
+	if resp.StatusCode > 299 {
+		return errors.New(string(resp.Body))
 	}
 
-	resp, err = d.client.DeleteLan(datacenterId, lanId)
-	if err != nil {
-		return err
-	}
-
-	err = d.waitTillProvisioned(resp.Get("Location"))
+	err = d.waitTillProvisioned(strings.Join(resp.Headers["Location"], ""))
 	if err != nil {
 		return err
 	}
@@ -443,16 +450,17 @@ func (d *Driver) GetURL() (string, error) {
 
 func (d *Driver) Start() error {
 	serverstate, err := d.GetState()
+	d.setPB()
 
 	if err != nil {
 		return err
 	}
 	if serverstate != state.Running {
-		_, err = d.client.StartServer(d.DatacenterId, d.ServerId)
+		profitbricks.StartServer(d.DatacenterId, d.ServerId)
 	} else {
 		log.Info("Host is already running or starting")
 	}
-	return err
+	return nil
 }
 
 func (d *Driver) Stop() error {
@@ -465,18 +473,25 @@ func (d *Driver) Stop() error {
 		return nil
 	}
 
-	_, err = d.client.StopServer(d.DatacenterId, d.ServerId)
-
-	return err
+	d.setPB()
+	profitbricks.StopServer(d.DatacenterId, d.ServerId)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (d *Driver) Kill() error {
-	_, err := d.client.StopServer(d.DatacenterId, d.ServerId)
-	return err
+	resp := profitbricks.StopServer(d.DatacenterId, d.ServerId)
+	if resp.StatusCode != 202 {
+		return errors.New(string(resp.Body))
+	}
+	return nil
 }
 
 func (d *Driver) GetIP() (string, error) {
-	server, _ := d.client.GetServer(d.DatacenterId, d.ServerId)
+	d.setPB()
+	server := profitbricks.GetServer(d.DatacenterId, d.ServerId)
 
 	d.IPAddress = server.Entities.Nics.Items[0].Properties.Ips[0]
 	if d.IPAddress == "" {
@@ -486,7 +501,8 @@ func (d *Driver) GetIP() (string, error) {
 }
 
 func (d *Driver) GetState() (state.State, error) {
-	server, _ := d.client.GetServer(d.DatacenterId, d.ServerId)
+	d.setPB()
+	server := profitbricks.GetServer(d.DatacenterId, d.ServerId)
 
 	if server.StatusCode > 299 {
 
@@ -521,9 +537,9 @@ func (d *Driver) GetState() (state.State, error) {
 
 //Private helper functions
 func (d *Driver) setPB() {
-	client := profitbricks.NewClient(d.Username, d.Password)
-	client.SetUserAgent(fmt.Sprintf("%s", d.client.GetUserAgent()+"docker-machine-driver-profitbricks/1.3.4"))
-	client.SetURL(d.URL)
+	profitbricks.SetAuth(d.Username, d.Password)
+	profitbricks.SetUserAgent(fmt.Sprintf("%s", profitbricks.AgentHeader+"docker-machine-driver-profitbricks/1.3.4"))
+	profitbricks.SetEndpoint(d.URL)
 }
 
 func (d *Driver) publicSSHKeyPath() string {
@@ -548,11 +564,9 @@ func (d *Driver) isSwarmMaster() bool {
 }
 
 func (d *Driver) waitTillProvisioned(path string) error {
+	d.setPB()
 	for i := 0; i < waitCount; i++ {
-		request, err := d.client.GetRequestStatus(path)
-		if err != nil {
-			return err
-		}
+		request := profitbricks.GetRequestStatus(path)
 		if request.Metadata.Status == "DONE" {
 			return nil
 		}
@@ -567,9 +581,10 @@ func (d *Driver) waitTillProvisioned(path string) error {
 }
 
 func (d *Driver) getImageId(imageName string) string {
+	d.setPB()
 	d.UseAlias = false
 	//first look if the provided parameter matches an alias, if a match is found we return the image alias
-	location, _ := d.client.GetLocation(d.Location)
+	location := profitbricks.GetLocation(d.Location)
 
 	for _, alias := range location.Properties.ImageAliases {
 		if alias == imageName {
@@ -579,7 +594,7 @@ func (d *Driver) getImageId(imageName string) string {
 	}
 
 	//if no alias matchs we do extended search and return the image id
-	images, _ := d.client.ListImages()
+	images := profitbricks.ListImages()
 
 	if images.StatusCode == 401 {
 		log.Error("Authentication failed")
@@ -596,7 +611,7 @@ func (d *Driver) getImageId(imageName string) string {
 			diskType = "HDD"
 		}
 		if imgName != "" && strings.Contains(strings.ToLower(imgName), strings.ToLower(imageName)) && image.Properties.ImageType == diskType && image.Properties.Location == d.Location {
-			return image.ID
+			return image.Id
 		}
 	}
 	return ""
