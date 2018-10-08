@@ -3,16 +3,17 @@ package profitbricks
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/docker/machine/libmachine/drivers"
 	"github.com/docker/machine/libmachine/log"
 	"github.com/docker/machine/libmachine/mcnflag"
 	"github.com/docker/machine/libmachine/ssh"
 	"github.com/docker/machine/libmachine/state"
 	"github.com/profitbricks/profitbricks-sdk-go"
-	"io/ioutil"
-	"strconv"
-	"strings"
-	"time"
 )
 
 type Driver struct {
@@ -220,7 +221,7 @@ func (d *Driver) Create() error {
 	ipblockresp := profitbricks.ReserveIpBlock(ipblockreq)
 
 	if ipblockresp.StatusCode > 299 {
-		return fmt.Errorf("An error occurred while reserving an ipblock: %s", ipblockresp.StatusCode)
+		return fmt.Errorf("An error occurred while reserving an ipblock: %s", ipblockresp.Response)
 	}
 
 	err = d.waitTillProvisioned(ipblockresp.Headers.Get("Location"))
@@ -255,8 +256,8 @@ func (d *Driver) Create() error {
 		dc = profitbricks.GetDatacenter(d.DatacenterId)
 	}
 
-	lan := profitbricks.CreateLan(dc.Id, profitbricks.Lan{
-		Properties: profitbricks.LanProperties{
+	lan := profitbricks.CreateLan(dc.Id, profitbricks.CreateLanRequest{
+		Properties: profitbricks.CreateLanProperties{
 			Public: true,
 			Name:   d.MachineName,
 		},
@@ -312,6 +313,7 @@ func (d *Driver) Create() error {
 			Name: d.MachineName,
 			Lan:  lanId,
 			Ips:  ipblockresp.Properties.Ips,
+			Dhcp: true,
 		},
 	}
 
@@ -502,6 +504,16 @@ func (d *Driver) GetState() (state.State, error) {
 	d.setPB()
 	server := profitbricks.GetServer(d.DatacenterId, d.ServerId)
 
+	if server.StatusCode > 299 {
+
+		if server.StatusCode == 401 {
+			return state.None, fmt.Errorf("Unauthorized. Either user name or password are incorrect.")
+
+		} else {
+			return state.None, fmt.Errorf("Error occurred while fetching a server: %s", server.Response)
+		}
+	}
+
 	switch server.Metadata.State {
 	case "NOSTATE":
 		return state.None, nil
@@ -526,7 +538,7 @@ func (d *Driver) GetState() (state.State, error) {
 //Private helper functions
 func (d *Driver) setPB() {
 	profitbricks.SetAuth(d.Username, d.Password)
-	profitbricks.SetUserAgent(fmt.Sprintf("%s %s", profitbricks.AgentHeader+"docker-machine-driver-profitbricks/1.2.3"))
+	profitbricks.SetUserAgent(fmt.Sprintf("%s", profitbricks.AgentHeader+"docker-machine-driver-profitbricks/1.3.4"))
 	profitbricks.SetEndpoint(d.URL)
 }
 
