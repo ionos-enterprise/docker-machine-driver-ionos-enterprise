@@ -1,3 +1,8 @@
+[![No Maintenance Intended](http://unmaintained.tech/badge.svg)](http://unmaintained.tech/)
+# DEPRECATED
+
+This is no longer supported, please consider using [IONOS Cloud Docker Machine Driver](https://github.com/ionos-cloud/docker-machine-driver) instead.
+
 # ProfitBricks Docker Machine Driver
 
 This is the official Docker Machine driver for use with the ProfitBricks Cloud.
